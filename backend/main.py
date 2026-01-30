@@ -13,6 +13,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from api.crowd_routes import router as crowd_router
+from api.location_routes import router as location_router
 from config import settings
 from simulation import crowd_generator, density_controller, scheduler
 from storage import memory_store
@@ -37,6 +38,7 @@ def tick() -> None:
 
 app = FastAPI(title="DensityX AI", description="Crowd location simulation")
 app.include_router(crowd_router)
+app.include_router(location_router)
 
 
 @app.on_event("startup")
