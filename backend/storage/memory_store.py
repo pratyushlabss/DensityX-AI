@@ -51,6 +51,21 @@ def get_ingested_locations_last_60s() -> List[Dict[str, Any]]:
     return list(_ingested)
 
 
+# Last DBSCAN result (cluster count, sizes, risk flags) for GET /density
+_last_density_result: Dict[str, Any] = {}
+
+
+def set_last_density_result(result: Dict[str, Any]) -> None:
+    """Store the latest density detection result."""
+    global _last_density_result
+    _last_density_result = dict(result)
+
+
+def get_last_density_result() -> Dict[str, Any]:
+    """Return the last density result (empty dict if never run)."""
+    return dict(_last_density_result)
+
+
 if __name__ == "__main__":
     print("memory_store is a module, not an entry point.")
     print("Run the app from the backend directory:  cd backend && python main.py")

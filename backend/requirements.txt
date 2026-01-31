@@ -1,5 +1,4 @@
-cat <<EOF > requirements.txt
 fastapi
 uvicorn
-EOF
-
+numpy
+scikit-learn

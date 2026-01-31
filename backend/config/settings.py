@@ -18,3 +18,13 @@ UPDATE_INTERVAL_SECONDS = 2
 
 # Extra attendees to add when a surge is triggered
 SURGE_EXTRA = 150
+
+# --- Density detection (DBSCAN) ---
+# How often to run DBSCAN on recent locations (seconds)
+DBSCAN_INTERVAL_SECONDS = 10
+# Max distance (degrees) for points in same cluster; ~0.0005 ≈ 55m at equator
+DBSCAN_EPS = 0.0005
+# Min points to form a cluster
+DBSCAN_MIN_SAMPLES = 2
+# Cluster size >= this is flagged as high-risk
+HIGH_RISK_MIN_SIZE = 5
