@@ -11,6 +11,8 @@ if str(ROOT) not in sys.path:
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
 
 from api.crowd_routes import router as crowd_router
 from api.density_routes import router as density_router
@@ -39,8 +41,11 @@ def tick() -> None:
 
 
 def density_tick() -> None:
-    """Run DBSCAN on last 60s of ingested locations; store result and print to console."""
-    points = memory_store.get_ingested_locations_last_60s()
+    """Run DBSCAN on current simulated locations; store result and print to console."""
+    # Get current simulated crowd locations and convert to dict format
+    locations = memory_store.get_locations()
+    points = [{"lat": loc.latitude, "lon": loc.longitude} for loc in locations]
+    
     result = run_dbscan(
         points,
         eps=settings.DBSCAN_EPS,
@@ -55,9 +60,15 @@ def density_tick() -> None:
 
 
 app = FastAPI(title="DensityX AI", description="Crowd location simulation")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(crowd_router)
 app.include_router(density_router)
 app.include_router(location_router)
+
+# Admin dashboard: map + heatmap + high-density overlay
+_dashboard_dir = Path(__file__).resolve().parent / "static" / "dashboard"
+if _dashboard_dir.exists():
+    app.mount("/dashboard", StaticFiles(directory=str(_dashboard_dir), html=True), name="dashboard")
 
 
 @app.on_event("startup")
