@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DensityX AI — Admin Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    #app { display: flex; height: 100vh; }
+    #map { flex: 1; min-width: 0; }
+    #panel {
+      width: 280px; padding: 1rem; background: #1a1a2e; color: #eee;
+      overflow-y: auto; font-size: 14px;
+    }
+    #panel h2 { margin: 0 0 0.75rem; font-size: 1.1rem; }
+    #panel .stat { margin-bottom: 0.5rem; }
+    #panel .stat strong { color: #a0a0a0; }
+    #panel .risk { color: #ff6b6b; font-weight: 600; }
+    #panel .refresh { color: #888; font-size: 12px; margin-top: 1rem; }
+    .leaflet-popup-content { margin: 8px 12px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="map"></div>
+    <div id="panel">
+      <h2>Density Overview</h2>
+      <div class="stat"><strong>Points:</strong> <span id="pointCount">—</span></div>
+      <div class="stat"><strong>Clusters:</strong> <span id="clusterCount">—</span></div>
+      <div class="stat"><strong>Cluster sizes:</strong> <span id="clusterSizes">—</span></div>
+      <div class="stat"><strong class="risk">High-risk clusters:</strong> <span id="riskFlags" class="risk">—</span></div>
+      <div class="refresh">Auto-refresh every 5s</div>
+    </div>
+  </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <script>
+    const VENUE_CENTER = [37.7749, -122.4194];
+    const REFRESH_MS = 5000;
+
+    const map = L.map('map').setView(VENUE_CENTER, 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    let heatLayer = null;
+    const clusterMarkers = [];
+
+    function getApiBase() {
+      const path = window.location.pathname;
+      if (path.startsWith('/dashboard')) return path.replace(/\/dashboard.*/, '') || '';
+      return '';
+    }
+
+    function clearClusterMarkers() {
+      clusterMarkers.forEach(m => m.remove());
+      clusterMarkers.length = 0;
+    }
+
+    function updateMap(crowd, density) {
+      const base = getApiBase();
+      const points = (crowd && crowd.points) || [];
+      const heatData = points.map(p => [p.latitude, p.longitude, 0.7]);
+      if (heatLayer) map.removeLayer(heatLayer);
+      heatLayer = L.heatLayer(heatData, { radius: 25, blur: 15 }).addTo(map);
+
+      clearClusterMarkers();
+      const clusters = (density && density.clusters) || [];
+      clusters.filter(c => c.risk).forEach(c => {
+        const m = L.circleMarker([c.centroid_lat, c.centroid_lon], {
+          radius: 12, fillColor: '#e74c3c', color: '#c0392b', weight: 2, fillOpacity: 0.8
+        }).addTo(map).bindPopup('High-density cluster: ' + c.size + ' points');
+        clusterMarkers.push(m);
+      });
+    }
+
+    let lastCrowdCount = 0;
+    function updatePanel(density, crowd) {
+      const d = density || {};
+      const pointCount = (crowd && crowd.points) ? crowd.points.length : d.point_count;
+      document.getElementById('pointCount').textContent = pointCount ?? lastCrowdCount ?? '—';
+      if (crowd && crowd.points) lastCrowdCount = crowd.points.length;
+      document.getElementById('clusterCount').textContent = d.cluster_count ?? '—';
+      document.getElementById('clusterSizes').textContent = (d.cluster_sizes && d.cluster_sizes.length) ? d.cluster_sizes.join(', ') : '—';
+      document.getElementById('riskFlags').textContent = (d.risk_flags && d.risk_flags.length) ? d.risk_flags.join(', ') : '—';
+    }
+
+    async function refresh() {
+      const base = getApiBase();
+      try {
+        const [crowdRes, densityRes] = await Promise.all([
+          fetch(base + '/crowd/locations'),
+          fetch(base + '/density')
+        ]);
+        const crowd = crowdRes.ok ? await crowdRes.json() : null;
+        const density = densityRes.ok ? await densityRes.json() : null;
+        updateMap(crowd, density);
+        updatePanel(density, crowd);
+      } catch (e) {
+        console.warn('Dashboard refresh failed:', e);
+      }
+    }
+
+    refresh();
+    setInterval(refresh, REFRESH_MS);
+  </script>
+</body>
+</html>
