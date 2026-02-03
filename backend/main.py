@@ -62,7 +62,6 @@ app = FastAPI(title="DensityX AI", description="Crowd location simulation")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(crowd_router)
 app.include_router(location_router)
->>>>>>> ce7db74a571e9480a08b8e162b1c41d09c1c7764
 
 # Admin dashboard: map + heatmap + high-density overlay
 _dashboard_dir = Path(__file__).resolve().parent / "static" / "dashboard"
