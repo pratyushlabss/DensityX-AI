@@ -1,15 +1,8 @@
 # storage/memory_store.py
 # In-memory storage for current crowd locations and ingested locations (last 60s).
 
-import sys
 import time
-from pathlib import Path
 from typing import Any, Dict, List
-
-if __name__ == "__main__":
-    backend = Path(__file__).resolve().parent.parent
-    if str(backend) not in sys.path:
-        sys.path.insert(0, str(backend))
 
 from models.location import Location
 
@@ -40,8 +33,21 @@ def set_locations(locations: List[Location]) -> None:
 
 
 def add_ingested_location(payload: Dict[str, Any]) -> None:
-    """Append one ingested location and prune entries older than 60s."""
-    _ingested.append(payload)
+    """Append one ingested location and prune entries older than 60s. Normalize to lat/lng."""
+    entry = dict(payload)
+    if "lon" in entry and "lng" not in entry:
+        entry["lng"] = entry.pop("lon")
+    _ingested.append(entry)
+    _prune_ingested()
+
+
+def ingest_locations(payloads: List[Dict[str, Any]]) -> None:
+    """Append a batch of ingested locations (same list as generated, including hotspots), then prune once."""
+    for payload in payloads:
+        entry = dict(payload)
+        if "lon" in entry and "lng" not in entry:
+            entry["lng"] = entry.pop("lon")
+        _ingested.append(entry)
     _prune_ingested()
 
 
@@ -68,4 +74,4 @@ def get_last_density_result() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     print("memory_store is a module, not an entry point.")
-    print("Run the app from the backend directory:  cd backend && python main.py")
+    print("Run: cd backend && python3 -m uvicorn main:app")

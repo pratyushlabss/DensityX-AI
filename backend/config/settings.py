@@ -19,11 +19,17 @@ UPDATE_INTERVAL_SECONDS = 2
 # Extra attendees to add when a surge is triggered
 SURGE_EXTRA = 150
 
+# --- Hotspot (cluster) simulation ---
+# Fraction of points generated tightly around a single hotspot (~30%)
+HOTSPOT_FRACTION = 0.3
+# Max random offset from hotspot (degrees); much smaller than venue delta so DBSCAN can cluster
+HOTSPOT_DELTA = 0.00003
+
 # --- Density detection (DBSCAN) ---
 # How often to run DBSCAN on recent locations (seconds)
 DBSCAN_INTERVAL_SECONDS = 10
 # Max distance (degrees) for points in same cluster; ~0.0005 ≈ 55m at equator
-DBSCAN_EPS = 0.0005
+DBSCAN_EPS = 0.0004 #max distance between two points to be considered neighbors
 # Min points to form a cluster
 DBSCAN_MIN_SAMPLES = 2
 # Cluster size >= this is flagged as high-risk

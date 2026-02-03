@@ -15,7 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.staticfiles import StaticFiles
 
 from api.crowd_routes import router as crowd_router
-from api.density_routes import router as density_router
 from api.location_routes import router as location_router
 from config import settings
 from density import run_dbscan
@@ -62,8 +61,8 @@ def density_tick() -> None:
 app = FastAPI(title="DensityX AI", description="Crowd location simulation")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(crowd_router)
-app.include_router(density_router)
 app.include_router(location_router)
+>>>>>>> ce7db74a571e9480a08b8e162b1c41d09c1c7764
 
 # Admin dashboard: map + heatmap + high-density overlay
 _dashboard_dir = Path(__file__).resolve().parent / "static" / "dashboard"
@@ -72,12 +71,12 @@ if _dashboard_dir.exists():
 
 
 @app.on_event("startup")
-def startup():
+def startup() -> None:
     """Start continuous crowd generation and density detection in background threads."""
     scheduler.start_scheduler(settings.UPDATE_INTERVAL_SECONDS, tick)
     scheduler.start_scheduler(settings.DBSCAN_INTERVAL_SECONDS, density_tick)
-    print(f"[startup] scheduler running every {settings.UPDATE_INTERVAL_SECONDS}s")
-    print(f"[startup] DBSCAN running every {settings.DBSCAN_INTERVAL_SECONDS}s")
+    print(f"[startup] scheduler every {settings.UPDATE_INTERVAL_SECONDS}s")
+    print(f"[startup] DBSCAN every {settings.DBSCAN_INTERVAL_SECONDS}s")
 
 
 if __name__ == "__main__":
