@@ -1,6 +1,15 @@
 # config/settings.py
-# Venue and simulation settings for crowd generation (in-memory only).
+# Configuration for crowd monitoring system (simulation or real ticket-based).
 
+# ============= MODE SELECTION =============
+# Set to True for simulated crowd, False for real ticket-verified users
+USE_SIMULATION = False
+
+# ============= TICKET VERIFICATION =============
+# Path to CSV file containing valid ticket IDs
+TICKETS_CSV_PATH = "tickets.csv"
+
+# ============= VENUE CONFIGURATION =============
 # Venue center (latitude, longitude) — anchored in Anna Nagar, Chennai
 VENUE_CENTER_LAT = 13.0850
 VENUE_CENTER_LNG = 80.2101
@@ -10,6 +19,7 @@ VENUE_CENTER_LNG = 80.2101
 DELTA_LAT = 0.010   # ~13.075 to 13.095
 DELTA_LNG = 0.015   # ~80.195 to 80.225
 
+# ============= SIMULATION MODE (when USE_SIMULATION=True) =============
 # Base number of simulated attendees (dynamic; can change at runtime)
 BASE_CROWD_SIZE = 200
 
@@ -25,8 +35,8 @@ HOTSPOT_FRACTION = 0.3
 # Max random offset from hotspot (degrees); much smaller than venue delta so DBSCAN can cluster
 HOTSPOT_DELTA = 0.00003
 
-# --- Density detection (DBSCAN) ---
-# How often to run DBSCAN on recent locations (seconds)
+# ============= DENSITY DETECTION (DBSCAN) =============
+# How often to run DBSCAN on current locations (seconds) - ALWAYS RUNS regardless of mode
 DBSCAN_INTERVAL_SECONDS = 10
 # Max distance between points in meters for clustering (venue-scale)
 DBSCAN_EPS_METERS = 40
@@ -35,4 +45,5 @@ DBSCAN_MIN_SAMPLES = 12
 # Cluster size >= this is flagged as high-risk
 HIGH_RISK_MIN_SIZE = 5
 # Proactive alert: cluster size above this triggers UI alert and red zone (before extreme crowding)
-CLUSTER_ALERT_THRESHOLD = 800
+CLUSTER_ALERT_THRESHOLD = 80
+

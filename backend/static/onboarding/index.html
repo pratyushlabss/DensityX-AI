@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DensityX Event Check-In</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: linear-gradient(135deg, #0f1f3f 0%, #1a2a4f 50%, #0f1f3f 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    /* ==================== STATUS PANEL ==================== */
+    
+    #statusPanel {
+      background: rgba(15, 31, 63, 0.8);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      gap: 2rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .status-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-label {
+      font-size: 0.85rem;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .status-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #00d4ff, #0099ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #00ff88;
+      box-shadow: 0 0 10px #00ff88;
+      animation: pulse 2s infinite;
+    }
+
+    .status-indicator.offline {
+      background: #ff3366;
+      box-shadow: 0 0 10px #ff3366;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* ==================== MAIN CONTAINER ==================== */
+
+    #mainContainer {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+
+    /* ==================== ONBOARDING CARD ==================== */
+
+    .onboarding-card {
+      width: 100%;
+      max-width: 480px;
+      background: rgba(26, 42, 79, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      border-radius: 16px;
+      padding: 3rem 2rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      animation: slideUp 0.5s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .onboarding-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .onboarding-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #00d4ff, #0099ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .onboarding-subtitle {
+      font-size: 0.95rem;
+      color: #aaa;
+      line-height: 1.5;
+    }
+
+    /* ==================== PROGRESS BAR ==================== */
+
+    .progress-container {
+      margin-bottom: 2.5rem;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00d4ff, #0099ff);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+      width: 25%;
+    }
+
+    .progress-steps {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .progress-step {
+      flex: 1;
+      text-align: center;
+      font-size: 0.75rem;
+      color: #666;
+      font-weight: 600;
+      padding: 0.5rem 0;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+    }
+
+    .progress-step.active {
+      color: #00d4ff;
+      background: rgba(0, 212, 255, 0.1);
+    }
+
+    .progress-step.completed {
+      color: #00ff88;
+    }
+
+    /* ==================== FORM SECTIONS ==================== */
+
+    .form-section {
+      display: none;
+      animation: fadeIn 0.3s ease-in;
+    }
+
+    .form-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #00d4ff;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 1rem;
+      background: rgba(15, 31, 63, 0.6);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 1rem;
+      font-family: inherit;
+      transition: all 0.3s ease;
+      outline: none;
+    }
+
+    .form-input::placeholder {
+      color: #666;
+    }
+
+    .form-input:focus {
+      border-color: #00d4ff;
+      background: rgba(15, 31, 63, 0.8);
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+    }
+
+    .form-error {
+      color: #ff3366;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+
+    .form-error.visible {
+      display: block;
+    }
+
+    /* ==================== GPS CONSENT ==================== */
+
+    .gps-consent {
+      background: rgba(0, 212, 255, 0.05);
+      border: 2px solid rgba(0, 212, 255, 0.2);
+      border-radius: 10px;
+      padding: 1.5rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .gps-icon {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .gps-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #00d4ff;
+    }
+
+    .gps-description {
+      font-size: 0.9rem;
+      color: #aaa;
+      line-height: 1.5;
+    }
+
+    /* ==================== SUCCESS SCREEN ==================== */
+
+    .success-screen {
+      display: none;
+      text-align: center;
+      animation: fadeIn 0.5s ease-in;
+    }
+
+    .success-screen.active {
+      display: block;
+    }
+
+    .success-icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+      animation: scaleIn 0.5s ease-out;
+    }
+
+    @keyframes scaleIn {
+      from {
+        transform: scale(0.5);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .success-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #00ff88, #00d4ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .success-message {
+      font-size: 1rem;
+      color: #aaa;
+      margin-bottom: 0.5rem;
+      line-height: 1.6;
+    }
+
+    .tracking-status {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: rgba(0, 255, 136, 0.1);
+      border: 1px solid #00ff88;
+      border-radius: 8px;
+      color: #00ff88;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .tracking-status.loading {
+      background: rgba(0, 212, 255, 0.1);
+      border-color: #00d4ff;
+      color: #00d4ff;
+    }
+
+    /* ==================== BUTTONS ==================== */
+
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+
+    .button-group.single {
+      gap: 0;
+    }
+
+    button {
+      flex: 1;
+      padding: 1rem;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      outline: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00d4ff, #0099ff);
+      color: #0f1f3f;
+      box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(0, 212, 255, 0.4);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #00d4ff;
+      border: 2px solid rgba(0, 212, 255, 0.3);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(0, 212, 255, 0.5);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #00ff88, #00d4ff);
+      color: #0f1f3f;
+      box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
+    }
+
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(0, 255, 136, 0.4);
+    }
+
+    /* ==================== LOADING SPINNER ==================== */
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid #00d4ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 0.5rem;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* ==================== RESPONSIVE ==================== */
+
+    @media (max-width: 600px) {
+      body {
+        padding: 0;
+      }
+
+      #statusPanel {
+        padding: 1rem;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .status-item {
+        flex: 1;
+        min-width: 100px;
+      }
+
+      .onboarding-card {
+        max-width: 100%;
+        height: 100vh;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        margin: 0;
+      }
+
+      .onboarding-title {
+        font-size: 1.4rem;
+      }
+
+      .button-group {
+        margin-top: 1.5rem;
+      }
+
+      button {
+        padding: 0.9rem;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Status Panel -->
+  <div id="statusPanel">
+    <div class="status-item">
+      <div class="status-label">Users Checked In</div>
+      <div class="status-value" id="totalUsers">—</div>
+    </div>
+    <div class="status-item">
+      <div class="status-label">GPS Active</div>
+      <div class="status-value" id="gpsActive">—</div>
+    </div>
+    <div class="status-item">
+      <div class="status-label">System Status</div>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <div class="status-indicator" id="systemIndicator"></div>
+        <span id="systemStatus" style="font-size: 0.9rem;">Connected</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <div id="mainContainer">
+    <div class="onboarding-card">
+      <!-- Header -->
+      <div class="onboarding-header">
+        <div class="onboarding-title">DensityX</div>
+        <div class="onboarding-subtitle">Event Check-In System</div>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-container">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-steps">
+          <div class="progress-step active" id="step1-label">Ticket</div>
+          <div class="progress-step" id="step2-label">Details</div>
+          <div class="progress-step" id="step3-label">GPS</div>
+          <div class="progress-step" id="step4-label">Confirmed</div>
+        </div>
+      </div>
+
+      <!-- Step 1: Ticket Entry -->
+      <div class="form-section active" id="step1">
+        <div class="form-group">
+          <label class="form-label">Ticket ID</label>
+          <input id="ticketInput" class="form-input" type="text" placeholder="DX-A9F3K2" maxlength="11" />
+          <div class="form-error" id="step1-error"></div>
+        </div>
+        <div class="button-group single">
+          <button class="btn-primary" onclick="handleStep1()">Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Personal Details -->
+      <div class="form-section" id="step2">
+        <div class="form-group">
+          <label class="form-label">Full Name</label>
+          <input id="nameInput" class="form-input" type="text" placeholder="Enter your full name" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input id="phoneInput" class="form-input" type="tel" placeholder="+91-9876543210" />
+          <div class="form-error" id="step2-error"></div>
+        </div>
+        <div class="button-group">
+          <button class="btn-secondary" onclick="goToStep(1)">Back</button>
+          <button class="btn-primary" onclick="handleStep2()">Next</button>
+        </div>
+      </div>
+
+      <!-- Step 3: GPS Consent -->
+      <div class="form-section" id="step3">
+        <div class="gps-consent">
+          <div class="gps-icon">📍</div>
+          <div class="gps-title">Enable Live Location</div>
+          <div class="gps-description">
+            We need your location to track crowd density and ensure your safety at the event.
+          </div>
+        </div>
+        <div class="button-group">
+          <button class="btn-secondary" onclick="goToStep(2)">Back</button>
+          <button class="btn-primary" onclick="handleStep3()">Allow & Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Success Screen -->
+      <div class="success-screen" id="step4">
+        <div class="success-icon">✔</div>
+        <div class="success-title">You're Checked In!</div>
+        <div class="success-message">
+          Welcome to the event. Your live location tracking is now active.
+        </div>
+        <div class="tracking-status" id="trackingStatus">
+          <span class="spinner"></span>Starting GPS tracking...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State management
+    let currentStep = 1;
+    let userSession = {
+      ticket_id: null,
+      name: null,
+      phone: null,
+      lat: null,
+      lon: null
+    };
+
+    let locationWatchId = null;
+    let statusUpdateInterval = null;
+
+    // ==================== UTILITY FUNCTIONS ====================
+
+    function showError(elementId, message) {
+      const errorEl = document.getElementById(elementId);
+      errorEl.textContent = message;
+      errorEl.classList.add('visible');
+    }
+
+    function clearError(elementId) {
+      const errorEl = document.getElementById(elementId);
+      errorEl.textContent = '';
+      errorEl.classList.remove('visible');
+    }
+
+    function goToStep(step) {
+      // Hide current step
+      document.getElementById(`step${currentStep}`).classList.remove('active');
+      document.getElementById(`step${currentStep}-label`).classList.remove('active');
+
+      if (currentStep > step) {
+        document.getElementById(`step${currentStep}-label`).classList.remove('completed');
+      }
+
+      // Show new step
+      currentStep = step;
+      document.getElementById(`step${currentStep}`).classList.add('active');
+      document.getElementById(`step${currentStep}-label`).classList.add('active');
+
+      // Update progress bar
+      const progress = (currentStep / 4) * 100;
+      document.getElementById('progressFill').style.width = progress + '%';
+
+      // Mark previous steps as completed
+      for (let i = 1; i < currentStep; i++) {
+        document.getElementById(`step${i}-label`).classList.add('completed');
+      }
+
+      clearError(`step${currentStep}-error`);
+    }
+
+    // ==================== STEP HANDLERS ====================
+
+    function handleStep1() {
+      const ticketId = document.getElementById('ticketInput').value.trim().toUpperCase();
+      clearError('step1-error');
+
+      // Validation
+      if (!ticketId) {
+        showError('step1-error', 'Ticket ID is required');
+        return;
+      }
+
+      if (!ticketId.match(/^DX-[A-Z0-9]{6}$/)) {
+        showError('step1-error', 'Invalid format (DX-XXXXXX)');
+        return;
+      }
+
+      // Verify ticket with backend
+      verifyTicket(ticketId);
+    }
+
+    async function verifyTicket(ticketId) {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Verifying...';
+
+      try {
+        // We call register to verify the ticket
+        const res = await fetch('/user/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticket_id: ticketId,
+            name: 'Pending',
+            phone: 'Pending'
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || 'Invalid ticket');
+        }
+
+        userSession.ticket_id = ticketId;
+        goToStep(2);
+      } catch (err) {
+        showError('step1-error', err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Continue';
+      }
+    }
+
+    function handleStep2() {
+      const name = document.getElementById('nameInput').value.trim();
+      const phone = document.getElementById('phoneInput').value.trim();
+      clearError('step2-error');
+
+      // Validation
+      if (!name) {
+        showError('step2-error', 'Name is required');
+        return;
+      }
+
+      if (!phone) {
+        showError('step2-error', 'Phone number is required');
+        return;
+      }
+
+      if (name.length < 2) {
+        showError('step2-error', 'Name must be at least 2 characters');
+        return;
+      }
+
+      userSession.name = name;
+      userSession.phone = phone;
+
+      // Update user info in backend
+      updateUserDetails();
+    }
+
+    async function updateUserDetails() {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Saving...';
+
+      try {
+        const res = await fetch('/user/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticket_id: userSession.ticket_id,
+            name: userSession.name,
+            phone: userSession.phone
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to save details');
+        }
+
+        goToStep(3);
+      } catch (err) {
+        showError('step2-error', err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Next';
+      }
+    }
+
+    function handleStep3() {
+      clearError('step3-error');
+
+      if (!navigator.geolocation) {
+        showError('step3-error', 'Geolocation not supported');
+        return;
+      }
+
+      const btn = event.target;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Requesting GPS...';
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          userSession.lat = position.coords.latitude;
+          userSession.lon = position.coords.longitude;
+          startTracking();
+          goToStep(4);
+        },
+        (error) => {
+          let msg = 'GPS request failed';
+          if (error.code === 1) msg = 'GPS access was denied';
+          if (error.code === 2) msg = 'GPS is unavailable';
+          showError('step3-error', msg);
+          btn.disabled = false;
+          btn.innerHTML = 'Allow & Continue';
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    function startTracking() {
+      // Send initial location
+      sendLocation();
+
+      // Start continuous tracking
+      locationWatchId = navigator.geolocation.watchPosition(
+        (position) => {
+          userSession.lat = position.coords.latitude;
+          userSession.lon = position.coords.longitude;
+          sendLocation();
+        },
+        (error) => {
+          console.warn('GPS tracking error:', error);
+          updateTrackingStatus(false);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+
+      // Simulate tracking started after 2 seconds
+      setTimeout(() => {
+        updateTrackingStatus(true);
+      }, 2000);
+    }
+
+    async function sendLocation() {
+      if (!userSession.ticket_id || !userSession.lat || !userSession.lon) return;
+
+      try {
+        await fetch('/user/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticket_id: userSession.ticket_id,
+            latitude: userSession.lat,
+            longitude: userSession.lon,
+            gps_enabled: true
+          })
+        });
+      } catch (err) {
+        console.warn('Location update failed:', err);
+      }
+    }
+
+    function updateTrackingStatus(isActive) {
+      const statusEl = document.getElementById('trackingStatus');
+      if (isActive) {
+        statusEl.innerHTML = '<span style="color: #00ff88;">✔</span> Live Tracking Enabled';
+        statusEl.classList.remove('loading');
+      } else {
+        statusEl.innerHTML = '<span class="spinner"></span>Waiting for GPS...';
+        statusEl.classList.add('loading');
+      }
+    }
+
+    // ==================== LIVE STATUS PANEL ====================
+
+    async function updateStatusPanel() {
+      try {
+        const res = await fetch('/user/active-count');
+        if (!res.ok) throw new Error('Failed to fetch status');
+
+        const data = await res.json();
+        document.getElementById('totalUsers').textContent = data.active_users || 0;
+        document.getElementById('gpsActive').textContent = data.gps_enabled || 0;
+
+        // Update system indicator
+        const indicator = document.getElementById('systemIndicator');
+        const statusText = document.getElementById('systemStatus');
+        indicator.classList.remove('offline');
+        statusText.textContent = 'Tracking';
+      } catch (err) {
+        console.error('Status update failed:', err);
+        const indicator = document.getElementById('systemIndicator');
+        indicator.classList.add('offline');
+        document.getElementById('systemStatus').textContent = 'Offline';
+      }
+    }
+
+    // ==================== INITIALIZATION ====================
+
+    function init() {
+      // Initial status update
+      updateStatusPanel();
+
+      // Update status every 5 seconds
+      statusUpdateInterval = setInterval(updateStatusPanel, 5000);
+
+      // Focus on ticket input
+      setTimeout(() => {
+        document.getElementById('ticketInput').focus();
+      }, 100);
+    }
+
+    // Start when DOM is ready
+    document.addEventListener('DOMContentLoaded', init);
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (locationWatchId) {
+        navigator.geolocation.clearWatch(locationWatchId);
+      }
+      if (statusUpdateInterval) {
+        clearInterval(statusUpdateInterval);
+      }
+    });
+  </script>
+</body>
+</html>

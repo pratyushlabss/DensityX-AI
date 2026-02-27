@@ -3,84 +3,550 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DensityX AI — Admin Dashboard</title>
+  <title>DensityX AI — Real-time Crowd Monitoring</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, sans-serif; }
-    #app { display: flex; height: 100vh; }
-    #map { flex: 1; min-width: 0; }
-    #panel {
-      width: 280px; padding: 1rem; background: #1a1a2e; color: #eee;
-      overflow-y: auto; font-size: 14px;
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0f0f23;
+      color: #eee;
+      overflow: hidden;
     }
-    #panel h2 { margin: 0 0 0.75rem; font-size: 1.1rem; }
-    #panel .stat { margin-bottom: 0.5rem; }
-    #panel .stat strong { color: #a0a0a0; }
-    #panel .risk { color: #ff6b6b; font-weight: 600; }
-    #panel .refresh { color: #888; font-size: 12px; margin-top: 1rem; }
-    .leaflet-popup-content { margin: 8px 12px; font-size: 13px; }
+    
+    #app { 
+      display: flex; 
+      height: 100vh; 
+      gap: 0;
+    }
+    
+    #map { 
+      flex: 1; 
+      min-width: 0;
+      position: relative;
+    }
+    
+    #panel {
+      width: 360px; 
+      padding: 1.5rem;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      overflow-y: auto;
+      font-size: 14px;
+      border-left: 1px solid #333;
+      box-shadow: -4px 0 12px rgba(0,0,0,0.5);
+    }
+    
+    #panel h1 {
+      font-size: 1.3rem;
+      margin-bottom: 1.5rem;
+      color: #00d4ff;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    #panel h1::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: #00ff88;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    #panel h2 { 
+      margin: 1.5rem 0 1rem;
+      font-size: 1rem; 
+      color: #00d4ff;
+      border-bottom: 2px solid #00d4ff;
+      padding-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+    
+    #panel h2:first-of-type { margin-top: 0; }
+    
+    .stat {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: rgba(0, 212, 255, 0.05);
+      border-left: 3px solid #00d4ff;
+      border-radius: 4px;
+    }
+    
+    .stat strong { 
+      color: #00d4ff;
+      display: block;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.25rem;
+    }
+    
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    
+    .stat-unit {
+      font-size: 0.75rem;
+      color: #888;
+      margin-left: 0.5rem;
+    }
+    
+    .risk { 
+      color: #ff3366;
+      background: rgba(255, 51, 102, 0.1) !important;
+      border-left-color: #ff3366 !important;
+    }
+    
+    .risk strong { color: #ff3366; }
+    .risk .stat-value { color: #ff6b9d; }
+    
+    .warning { 
+      color: #ffa500;
+      background: rgba(255, 165, 0, 0.1);
+      border-left-color: #ffa500;
+    }
+    
+    .warning strong { color: #ffa500; }
+    
+    .safe { 
+      color: #00ff88;
+      background: rgba(0, 255, 136, 0.1);
+      border-left-color: #00ff88;
+    }
+    
+    .safe strong { color: #00ff88; }
+    .safe .stat-value { color: #00ff88; }
+    
+    .clusters-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .cluster-tag {
+      padding: 0.5rem 0.75rem;
+      background: rgba(100, 150, 255, 0.1);
+      border: 1px solid #6496ff;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: #6496ff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .cluster-tag.alert {
+      background: rgba(255, 51, 102, 0.1);
+      border-color: #ff3366;
+      color: #ff6b9d;
+    }
+    
+    .cluster-size {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    
+    .refresh {
+      color: #666;
+      font-size: 0.75rem;
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #333;
+      text-align: center;
+    }
 
-    /* Alert banner: fixed at top, red/amber */
+    /* Alert banner */
     #alertBanner {
       display: none;
-      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-      padding: 12px 20px; font-weight: 600; font-size: 15px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      padding: 14px 20px;
+      font-weight: 600;
+      font-size: 16px;
       background: linear-gradient(90deg, #c0392b 0%, #e67e22 100%);
-      color: #fff; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      color: #fff;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(192, 57, 43, 0.4);
+      animation: slideDown 0.3s ease-out;
     }
+
+    @keyframes slideDown {
+      from {
+        transform: translateY(-100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
     #alertBanner.visible { display: block; }
     body.banner-visible #app { padding-top: 48px; }
 
-    /* Red flashing zone for alert clusters */
-    @keyframes zone-pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.75; transform: scale(1.15); }
+    .zone-pulse {
+      animation: zone-pulse 1s ease-in-out infinite;
     }
-    .cluster-marker-alert { animation: zone-pulse 1s ease-in-out infinite; }
+
+    @keyframes zone-pulse {
+      0%, 100% { 
+        opacity: 0.9; 
+        box-shadow: 0 0 20px rgba(255, 51, 102, 0.6);
+      }
+      50% { 
+        opacity: 0.6; 
+        box-shadow: 0 0 40px rgba(255, 51, 102, 0.8);
+      }
+    }
+
+    /* Leaflet overrides */
+    .leaflet-popup-content {
+      margin: 8px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #333;
+    }
+
+    .leaflet-popup-content strong {
+      color: #000;
+    }
+
+    /* Scrollbar styling */
+    #panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #panel::-webkit-scrollbar-track {
+      background: rgba(255,255,255,0.05);
+    }
+
+    #panel::-webkit-scrollbar-thumb {
+      background: rgba(0, 212, 255, 0.3);
+      border-radius: 3px;
+    }
+
+    #panel::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 212, 255, 0.5);
+    }
+
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    .status-safe {
+      background: #00ff88;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+    }
+
+    .status-warning {
+      background: #ffa500;
+      box-shadow: 0 0 10px rgba(255, 165, 0, 0.6);
+    }
+
+    .status-alert {
+      background: #ff3366;
+      box-shadow: 0 0 10px rgba(255, 51, 102, 0.6);
+    }
+
+    .info-box {
+      background: rgba(0, 212, 255, 0.05);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      padding: 1rem;
+      border-radius: 6px;
+      margin-top: 1.5rem;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: #bbb;
+    }
+
+    .info-box strong {
+      color: #00d4ff;
+      display: block;
+      margin-bottom: 0.5rem;
+    }
   </style>
 </head>
 <body>
   <div id="alertBanner" aria-live="polite"></div>
+  
+  <!-- Registration Modal -->
+  <div id="registrationModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+    <div style="background: #1a1a2e; border: 2px solid #00d4ff; border-radius: 12px; padding: 2rem; width: 90%; max-width: 400px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
+      <h2 style="color: #00d4ff; margin-bottom: 1.5rem; font-size: 1.3rem;">DensityX Registration</h2>
+      
+      <div id="registrationStep1" style="display: block;">
+        <p style="color: #bbb; margin-bottom: 1.5rem; line-height: 1.6;">Enter your ticket ID to register and enable live location tracking.</p>
+        
+        <div style="margin-bottom: 1.5rem;">
+          <label style="color: #00d4ff; display: block; margin-bottom: 0.5rem; font-weight: 600;">Ticket ID</label>
+          <input id="ticketIdInput" type="text" placeholder="DX-A9F3K2" style="width: 100%; padding: 0.75rem; background: #0f0f23; border: 1px solid #333; border-radius: 6px; color: #fff; font-family: monospace; font-size: 1rem; outline: none;" />
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+          <label style="color: #00d4ff; display: block; margin-bottom: 0.5rem; font-weight: 600;">Full Name</label>
+          <input id="nameInput" type="text" placeholder="John Doe" style="width: 100%; padding: 0.75rem; background: #0f0f23; border: 1px solid #333; border-radius: 6px; color: #fff; font-family: inherit; font-size: 1rem; outline: none;" />
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+          <label style="color: #00d4ff; display: block; margin-bottom: 0.5rem; font-weight: 600;">Phone Number</label>
+          <input id="phoneInput" type="tel" placeholder="+91-9876543210" style="width: 100%; padding: 0.75rem; background: #0f0f23; border: 1px solid #333; border-radius: 6px; color: #fff; font-family: inherit; font-size: 1rem; outline: none;" />
+        </div>
+
+        <div id="regError" style="color: #ff3366; margin-bottom: 1rem; font-size: 0.9rem; display: none;"></div>
+
+        <button id="registerBtn" style="width: 100%; padding: 0.75rem; background: #00d4ff; color: #0f0f23; border: none; border-radius: 6px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.2s;" onclick="handleRegistration()">Register & Enable GPS</button>
+      </div>
+
+      <div id="registrationStep2" style="display: none; text-align: center;">
+        <p style="color: #bbb; margin-bottom: 1.5rem; line-height: 1.6;">✓ Registration successful!<br/><br/>Waiting for GPS permission...</p>
+        <div style="display: inline-block; width: 40px; height: 40px; border: 4px solid #00d4ff; border-top: 4px solid transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        <style>
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        </style>
+      </div>
+    </div>
+  </div>
+
   <div id="app">
     <div id="map"></div>
     <div id="panel">
-      <h2>Density Overview</h2>
-      <div class="stat"><strong>Points:</strong> <span id="pointCount">—</span></div>
-      <div class="stat"><strong>Clusters:</strong> <span id="clusterCount">—</span></div>
-      <div class="stat"><strong>Cluster sizes:</strong> <span id="clusterSizes">—</span></div>
-      <div class="stat"><strong class="risk">High-risk clusters:</strong> <span id="riskFlags" class="risk">—</span></div>
-      <div class="refresh">Auto-refresh every 5s</div>
+      <h1>DensityX AI</h1>
+      
+      <div id="userStatus" style="background: rgba(0, 255, 136, 0.1); border: 1px solid #00ff88; border-radius: 6px; padding: 0.75rem; margin-bottom: 1.5rem; font-size: 0.9rem;">
+        <div style="color: #00ff88; margin-bottom: 0.25rem;"><strong>User Status</strong></div>
+        <div id="userStatusText" style="color: #bbb;">Not registered · <span style="cursor: pointer; color: #00d4ff; text-decoration: underline;" onclick="showRegistration()">Register now</span></div>
+      </div>
+      
+      <h2>Live Metrics</h2>
+      <div class="stat safe">
+        <strong>Total Points</strong>
+        <div class="stat-value"><span id="pointCount">—</span><span class="stat-unit">people</span></div>
+      </div>
+      
+      <div class="stat safe">
+        <strong>Active Clusters</strong>
+        <div class="stat-value"><span id="clusterCount">—</span><span class="stat-unit">areas</span></div>
+      </div>
+      
+      <div class="stat safe">
+        <strong>Cluster Sizes</strong>
+        <div style="font-size: 0.9rem; color: #bbb; margin-top: 0.5rem;"><span id="clusterSizes">—</span></div>
+      </div>
+      
+      <div class="stat risk" id="riskIndicator" style="display: none;">
+        <strong><span class="status-indicator status-alert"></span>High Risk Clusters</strong>
+        <div class="stat-value"><span id="riskFlags">0</span></div>
+      </div>
 
-      <section id="howItWorks" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #333;">
-        <h3 style="margin: 0 0 0.5rem; font-size: 0.95rem;">How DensityX Detects Risk</h3>
-        <p style="margin: 0; color: #b0b0b0; font-size: 13px; line-height: 1.5;">
-          DensityX continuously monitors crowd movement and density in real time.
-          When the number of people in a specific area crosses a safe threshold,
-          the system flags the zone early and alerts operators before conditions become dangerous.
-        </p>
-      </section>
+      <h2>Cluster Details</h2>
+      <div class="clusters-list" id="clustersList">
+        <div style="text-align: center; color: #666; padding: 1rem;">Loading clusters...</div>
+      </div>
+
+      <h2>Detection Method</h2>
+      <div class="info-box">
+        <strong>DBSCAN Algorithm</strong>
+        Detects natural density clusters in crowd locations. Configurable distance threshold (eps) and minimum points (min_samples) to identify distinct groups.
+        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(0, 212, 255, 0.2);">
+          <strong>Alert Threshold: 80 people/cluster</strong>
+        </div>
+      </div>
+
+      <div class="refresh">
+        ⟳ Auto-refresh every 5s | Backend: <span id="backendStatus" style="color: #00ff88;">●</span>
+      </div>
     </div>
   </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <script>
-    const VENUE_CENTER = [37.7749, -122.4194];
+    const VENUE_CENTER = [13.0850, 80.2101];  // Anna Nagar, Chennai
     const REFRESH_MS = 5000;
-
-    const map = L.map('map').setView(VENUE_CENTER, 16);
+    const LOCATION_UPDATE_MS = 5000;
+    
+    // User session state
+    let currentUser = null;
+    let gpsWatchId = null;
+    let locationUpdateInterval = null;
+    
+    // Initialize map
+    const map = L.map('map').setView(VENUE_CENTER, 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap'
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
     }).addTo(map);
-
+    
     let heatLayer = null;
     const clusterMarkers = [];
+    let lastUpdateTime = Date.now();
 
     function getApiBase() {
-      const path = window.location.pathname;
-      if (path.startsWith('/dashboard')) return path.replace(/\/dashboard.*/, '') || '';
       return '';
     }
+
+    // ============= REGISTRATION & GPS FUNCTIONS =============
+    
+    function showRegistration() {
+      document.getElementById('registrationModal').style.display = 'flex';
+    }
+
+    function hideRegistration() {
+      document.getElementById('registrationModal').style.display = 'none';
+    }
+
+    async function handleRegistration() {
+      const ticketId = document.getElementById('ticketIdInput').value.trim().toUpperCase();
+      const name = document.getElementById('nameInput').value.trim();
+      const phone = document.getElementById('phoneInput').value.trim();
+      const errorDiv = document.getElementById('regError');
+
+      errorDiv.style.display = 'none';
+      errorDiv.textContent = '';
+
+      // Validation
+      if (!ticketId || !name || !phone) {
+        errorDiv.textContent = 'All fields are required';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      if (!ticketId.match(/^DX-[A-Z0-9]{6}$/)) {
+        errorDiv.textContent = 'Invalid ticket format (must be DX-XXXXXX)';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      try {
+        // Disable button
+        const btn = document.getElementById('registerBtn');
+        btn.disabled = true;
+        btn.textContent = 'Registering...';
+
+        // Call registration API
+        const regRes = await fetch('/user/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket_id: ticketId, name, phone })
+        });
+
+        if (!regRes.ok) {
+          const errData = await regRes.json();
+          throw new Error(errData.detail || 'Registration failed');
+        }
+
+        // Store user info
+        currentUser = { ticket_id: ticketId, name, phone };
+        
+        // Show step 2
+        document.getElementById('registrationStep1').style.display = 'none';
+        document.getElementById('registrationStep2').style.display = 'block';
+
+        // Request GPS permission
+        setTimeout(requestGPSPermission, 1500);
+
+      } catch (err) {
+        console.error('[ERROR] Registration failed:', err);
+        btn.disabled = false;
+        btn.textContent = 'Register & Enable GPS';
+        errorDiv.textContent = 'Error: ' + err.message;
+        errorDiv.style.display = 'block';
+      }
+    }
+
+    function requestGPSPermission() {
+      if (!navigator.geolocation) {
+        updateUserStatus('Browser does not support geolocation');
+        hideRegistration();
+        return;
+      }
+
+      navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          startLocationTracking(lat, lon);
+        },
+        (error) => {
+          console.error('[ERROR] Geolocation error:', error);
+          let msg = 'GPS access denied';
+          if (error.code === 1) msg = 'You denied GPS permission';
+          if (error.code === 2) msg = 'GPS is unavailable';
+          updateUserStatus(msg);
+          hideRegistration();
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
+    function startLocationTracking(initialLat, initialLon) {
+      updateUserStatus(`${currentUser.name} · Tracking enabled ✓`);
+      hideRegistration();
+
+      // Send initial location
+      sendLocation(initialLat, initialLon);
+
+      // Start periodic location updates
+      if (locationUpdateInterval) clearInterval(locationUpdateInterval);
+      locationUpdateInterval = setInterval(() => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => sendLocation(pos.coords.latitude, pos.coords.longitude),
+          (err) => console.warn('[GPS] Position update failed:', err.message)
+        );
+      }, LOCATION_UPDATE_MS);
+    }
+
+    async function sendLocation(lat, lon) {
+      if (!currentUser) return;
+
+      try {
+        const res = await fetch('/user/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticket_id: currentUser.ticket_id,
+            latitude: lat,
+            longitude: lon,
+            gps_enabled: true
+          })
+        });
+
+        if (!res.ok) {
+          console.warn('[GPS] Location update failed:', res.status);
+        }
+      } catch (err) {
+        console.warn('[GPS] Location update error:', err.message);
+      }
+    }
+
+    function updateUserStatus(status) {
+      document.getElementById('userStatusText').innerHTML = status;
+    }
+
+    // ============= MAP & PANEL UPDATE FUNCTIONS =============
 
     function clearClusterMarkers() {
       clusterMarkers.forEach(m => m.remove());
@@ -88,74 +554,138 @@
     }
 
     function updateMap(crowd, density) {
-      const base = getApiBase();
       const points = (crowd && crowd.points) || [];
-      const heatData = points.map(p => [p.latitude, p.longitude, 0.7]);
+      const heatData = points.map(p => [p.lat, p.lon, 0.7]);
+      
       if (heatLayer) map.removeLayer(heatLayer);
-      heatLayer = L.heatLayer(heatData, { radius: 25, blur: 15 }).addTo(map);
+      heatLayer = L.heatLayer(heatData, { 
+        radius: 30, 
+        blur: 20,
+        maxZoom: 1,
+        gradient: {0.0: '#0000ff', 0.33: '#00ff00', 0.66: '#ffff00', 1.0: '#ff0000'}
+      }).addTo(map);
 
       clearClusterMarkers();
       const clusters = (density && density.clusters) || [];
-      clusters.filter(c => c.risk).forEach(c => {
-        const isAlert = c.alert === true;
+      
+      clusters.forEach(c => {
+        const isAlert = c.risk_flag === true;
+        const color = isAlert ? '#ff3366' : '#6496ff';
+        const darkColor = isAlert ? '#c0392b' : '#4169e1';
+        
         const m = L.circleMarker([c.centroid_lat, c.centroid_lon], {
-          radius: 12,
-          fillColor: isAlert ? '#c0392b' : '#e74c3c',
-          color: isAlert ? '#922b21' : '#c0392b',
-          weight: 2,
-          fillOpacity: 0.8
-        }).addTo(map).bindPopup((isAlert ? '⚠️ Alert: ' : '') + 'High-density cluster: ' + c.size + ' points');
-        if (isAlert && m.getElement()) m.getElement().classList.add('cluster-marker-alert');
+          radius: isAlert ? 16 : 12,
+          fillColor: color,
+          color: darkColor,
+          weight: 3,
+          fillOpacity: isAlert ? 0.9 : 0.8
+        }).addTo(map);
+        
+        m.bindPopup(
+          `<strong>${isAlert ? '⚠️ ALERT' : 'Cluster'} ${c.id}</strong><br/>` +
+          `<strong>Size:</strong> ${c.size} people<br/>` +
+          `<strong>Location:</strong> ${c.centroid_lat.toFixed(4)}, ${c.centroid_lon.toFixed(4)}<br/>` +
+          `<strong>Status:</strong> ${isAlert ? 'HIGH RISK' : 'Normal'}`
+        );
+        
+        if (isAlert && m.getElement()) {
+          m.getElement().classList.add('zone-pulse');
+        }
+        
         clusterMarkers.push(m);
       });
     }
 
-    let lastCrowdCount = 0;
     function zoneName(clusterId) {
       return 'Zone ' + String.fromCharCode(65 + (clusterId % 26));
     }
+
     function updatePanel(density, crowd) {
       const d = density || {};
       const pointCount = (crowd && crowd.points) ? crowd.points.length : d.point_count;
-      document.getElementById('pointCount').textContent = pointCount ?? lastCrowdCount ?? '—';
-      if (crowd && crowd.points) lastCrowdCount = crowd.points.length;
+      
+      document.getElementById('pointCount').textContent = pointCount ?? '—';
       document.getElementById('clusterCount').textContent = d.cluster_count ?? '—';
-      document.getElementById('clusterSizes').textContent = (d.cluster_sizes && d.cluster_sizes.length) ? d.cluster_sizes.join(', ') : '—';
-      document.getElementById('riskFlags').textContent = (d.risk_flags && d.risk_flags.length) ? d.risk_flags.join(', ') : '—';
+      document.getElementById('clusterSizes').textContent = 
+        (d.cluster_sizes && d.cluster_sizes.length) ? d.cluster_sizes.join(', ') : '—';
 
+      // Update risk indicator
       const clusters = d.clusters || [];
-      const alertClusters = clusters.filter(c => c.alert).sort((a, b) => (b.size - a.size));
+      const riskClusters = clusters.filter(c => c.risk_flag);
+      const riskIndicator = document.getElementById('riskIndicator');
+      
+      if (riskClusters.length > 0) {
+        document.getElementById('riskFlags').textContent = riskClusters.length;
+        riskIndicator.style.display = 'block';
+      } else {
+        riskIndicator.style.display = 'none';
+      }
+
+      // Update clusters list
+      const clustersList = document.getElementById('clustersList');
+      if (clusters.length === 0) {
+        clustersList.innerHTML = '<div style="text-align: center; color: #666; padding: 1rem;">No clusters detected</div>';
+      } else {
+        clustersList.innerHTML = clusters.map(c => `
+          <div class="cluster-tag ${c.risk_flag ? 'alert' : ''}">
+            <span><strong>Zone ${String.fromCharCode(65 + (c.id % 26))}</strong> (ID: ${c.id})</span>
+            <span class="cluster-size">${c.size} 👥</span>
+          </div>
+        `).join('');
+      }
+
+      // Update alert banner
       const banner = document.getElementById('alertBanner');
-      if (alertClusters.length > 0) {
-        const top = alertClusters[0];
-        banner.textContent = '⚠️ High crowd density detected in ' + zoneName(top.id) + ' (' + top.size + ' people)';
+      if (riskClusters.length > 0) {
+        const top = riskClusters.sort((a, b) => b.size - a.size)[0];
+        banner.textContent = `⚠️ HIGH CROWD DENSITY in ${zoneName(top.id)} (${top.size} people)`;
         banner.classList.add('visible');
         document.body.classList.add('banner-visible');
-        console.log('[DensityX alert] High crowd density:', alertClusters.map(c => ({ zone: zoneName(c.id), size: c.size })));
+        console.log('[ALERT]', riskClusters.map(c => `${zoneName(c.id)}: ${c.size} people`).join(' | '));
       } else {
         banner.classList.remove('visible');
         document.body.classList.remove('banner-visible');
       }
+
+      lastUpdateTime = Date.now();
     }
 
     async function refresh() {
-      const base = getApiBase();
       try {
+        const base = getApiBase();
         const [crowdRes, densityRes] = await Promise.all([
           fetch(base + '/crowd/locations'),
           fetch(base + '/density')
         ]);
-        const crowd = crowdRes.ok ? await crowdRes.json() : null;
-        const density = densityRes.ok ? await densityRes.json() : null;
+        
+        if (!crowdRes.ok || !densityRes.ok) {
+          throw new Error('API response error');
+        }
+
+        const crowd = await crowdRes.json();
+        const density = await densityRes.json();
+        
         updateMap(crowd, density);
         updatePanel(density, crowd);
+        
+        // Update backend status
+        document.getElementById('backendStatus').textContent = '●';
+        document.getElementById('backendStatus').style.color = '#00ff88';
       } catch (e) {
-        console.warn('Dashboard refresh failed:', e);
+        console.error('[ERROR] Dashboard refresh failed:', e);
+        document.getElementById('backendStatus').textContent = '●';
+        document.getElementById('backendStatus').style.color = '#ff3366';
       }
     }
 
+    // Initial load and auto-refresh
     refresh();
     setInterval(refresh, REFRESH_MS);
+
+    // Auto-focus ticket input
+    setTimeout(() => {
+      document.getElementById('ticketIdInput').focus();
+    }, 100);
   </script>
 </body>
 </html>
