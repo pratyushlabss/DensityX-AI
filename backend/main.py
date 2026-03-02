@@ -1,10 +1,15 @@
 # backend/main.py
 # Application entry point: wire API, config, and continuous crowd monitoring.
-# Supports both simulated and real ticket-based crowd monitoring.
+# Supports both simulated and real ticket-based crowd monitoring with Firebase.
 
 from pathlib import Path
 import sys
 import math
+import os
+
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
 
 # Add backend to path for imports
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -23,8 +28,10 @@ from api.location_routes import router as location_router
 from api.user_routes import router as user_router
 from config import settings
 from density import run_dbscan
+from density.cluster_reshaper import reshape_clusters_for_event
 from simulation import crowd_generator, density_controller, scheduler
 from storage import memory_store
+from firebase_config import FirebaseConfig
 
 # Set base crowd size from config (dynamic at runtime)
 if settings.USE_SIMULATION:
@@ -78,43 +85,80 @@ def tick() -> None:
 
 def density_tick() -> None:
     """
-    Run DBSCAN on current locations.
+    🎤 EVENT-AWARE CLUSTERING WITH DYNAMIC DENSITY DETECTION
     
-    In simulation mode: clusters simulated crowd points
-    In real mode: clusters real verified user GPS locations
+    Runs DBSCAN on current locations and reshapes results for event context:
+    - Verified-only clustering (CSV-verified tickets only)
+    - Dynamic surge thresholds (based on event size and spatial distribution)
+    - Adaptive risk levels (safe, caution, alert, critical)
+    - Visual properties (dynamic sizing, color coding)
+    
+    Behavior:
+    1. Collect verified GPS data
+    2. Run DBSCAN spatial clustering
+    3. Reshape clusters with event awareness
+    4. Trigger alerts on adaptive thresholds
     """
     if settings.USE_SIMULATION:
         # Simulated mode: use generated points
         locations = memory_store.get_locations()
         points = [{"lat": loc.latitude, "lon": loc.longitude} for loc in locations]
+        total_attendees = len(points)
         source = "simulated"
     else:
-        # Real mode: use registered users' GPS locations
-        users = memory_store.get_gps_enabled_users()
+        # 🔐 REAL MODE: Use ONLY verified users with GPS enabled
+        users = memory_store.get_verified_gps_users()  # ✅ Verified-only filter
         points = [{"lat": u.latitude, "lon": u.longitude} for u in users]
-        source = "real users"
+        total_attendees = len(users)
+        source = "verified users only"
     
+    # Run raw DBSCAN clustering
     result = run_dbscan(
         points,
         eps_meters=settings.DBSCAN_EPS_METERS,
         min_samples=settings.DBSCAN_MIN_SAMPLES,
         alert_threshold=settings.CLUSTER_ALERT_THRESHOLD,
     )
-    memory_store.set_last_density_result(result)
     
-    n = result["cluster_count"]
-    sizes = result["cluster_sizes"]
-    risk = result["risk_flags"]
-    risk_clusters = [c for c in result.get("clusters", []) if c.get("risk_flag")]
+    # Reshape clusters with event awareness
+    # 🎤 Dynamic surge threshold based on attendee count and venue size
+    reshaped = reshape_clusters_for_event(
+        result,
+        total_verified_attendees=total_attendees,
+        event_capacity=None,  # Can be extended from event config
+        spatial_spread_km=settings.VENUE_RADIUS_KM,
+    )
     
-    if risk_clusters:
-        print(f"[alert] High crowd density detected in {source}: {len(risk_clusters)} cluster(s) above threshold")
-    print(f"[density] {source} clusters={n} sizes={sizes} risk_flags={risk}")
+    # Store enhanced result
+    memory_store.set_last_density_result(reshaped)
+    
+    n = reshaped["cluster_count"]
+    sizes = reshaped["cluster_sizes"]
+    threshold = reshaped["adaptive_threshold"]
+    alert_count = reshaped["alert_count"]
+    
+    # Log event-aware status
+    if alert_count > 0:
+        alert_clusters = reshaped["alert_clusters"]
+        alert_sizes = [c["size"] for c in alert_clusters]
+        print(f"[🚨 ALERT] {source}: {alert_count} cluster(s) exceed adaptive threshold ({threshold}): sizes={alert_sizes}")
+    
+    print(f"[🎤 clustering] {source}: attendees={total_attendees}, clusters={n}, threshold={threshold}, alert_clusters={alert_count}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start continuous crowd monitoring and density detection in background threads."""
+    """Start continuous crowd monitoring, density detection, and Firebase initialization."""
+    
+    # Initialize Firebase Admin SDK
+    try:
+        print("[startup] Initializing Firebase Admin SDK...")
+        FirebaseConfig.initialize()
+        print("[startup] Firebase connected successfully!")
+    except Exception as e:
+        print(f"[startup-warning] Firebase initialization failed: {e}")
+        print("[startup] Continuing with memory store only - Firebase sync disabled")
+    
     if settings.USE_SIMULATION:
         # Simulation mode: generate crowd points every UPDATE_INTERVAL_SECONDS
         scheduler.start_scheduler(settings.UPDATE_INTERVAL_SECONDS, tick)

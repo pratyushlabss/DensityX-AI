@@ -105,6 +105,22 @@ def get_gps_enabled_users() -> List[UserLocation]:
     return [u for u in _active_users.values() if u.gps_enabled]
 
 
+def get_verified_gps_users() -> List[UserLocation]:
+    """
+    🔐 VERIFIED-ONLY CLUSTER DATA SOURCE
+    
+    Get only verified users with GPS enabled.
+    This is the ONLY source of truth for clustering.
+    
+    Returns:
+        List of UserLocation where verified==true AND gps_enabled==true
+    """
+    return [
+        u for u in _active_users.values() 
+        if u.verified and u.gps_enabled and u.latitude != 0.0 and u.longitude != 0.0
+    ]
+
+
 def clear_active_users() -> None:
     """Clear all active users (for testing or reset)."""
     global _active_users
