@@ -1,4 +1,11 @@
 import React, { useState, useEffect } from "react";
+import Sidebar from "./components/Sidebar";
+import TopNav from "./components/TopNav";
+import DashboardLayout from "./components/dashboard/DashboardLayout";
+import StatCard from "./components/dashboard/StatCard";
+import MapContainer from "./components/dashboard/MapContainer";
+import ActivityFeed from "./components/dashboard/ActivityFeed";
+import LiveMap from "./components/dashboard/LiveMap";
 
 const API_BASE = "https://densityx-ai.onrender.com";
 
@@ -17,14 +24,7 @@ const glassCardStyle = {
   position: "relative",
 };
 
-const gradientBg = {
-  minHeight: "100vh",
-  minWidth: "100vw",
-  background: "linear-gradient(135deg, #0f2027 0%, #2c5364 100%)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
+// Remove gradientBg, use Tailwind classes for layout
 
 const neonText = {
   color: "#00d4ff",
@@ -166,82 +166,135 @@ function AdminDashboard() {
     } catch {
       setError("Logout failed. Try again.");
       setLoading(false);
+frontend/src/App.css
     }
   };
 
+  // Layout: Sidebar, TopNav, main dashboard content, map section placeholder
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Prepare stats and activities for DashboardLayout
+  const stats = [
+    {
+      title: "Total Users Checked In",
+      value: activeUsers,
+      // icon: Users, // Uncomment and import Lucide icons if needed
+    },
+    {
+      title: "Active GPS Nodes",
+      value: gpsActive,
+      // icon: MapPin,
+    },
+    {
+      title: "Crowd Density Index",
+      value: "High", // Replace with real value if available
+      color: "text-yellow-400",
+      // icon: Activity,
+    },
+    {
+      title: "Risk Clusters",
+      value: 3, // Replace with real value if available
+      color: "text-density-red",
+      // icon: ShieldAlert,
+    },
+  ];
+
+  const activities = [
+    { title: "User DX-9321 Checked In", time: "2 minutes ago • Zone 1" },
+    { title: "User DX-9322 Checked In", time: "5 minutes ago • Zone 2" },
+    { title: "User DX-9323 Checked In", time: "10 minutes ago • Zone 3" },
+    // TODO: Replace with real activity data from API
+  ];
+
+  // Fetch real-time GPS-enabled user locations for map
+  const [mapMarkers, setMapMarkers] = useState([]);
+  useEffect(() => {
+    async function fetchGpsMarkers() {
+      try {
+        const res = await fetch(`${API_BASE}/user/active-users`);
+        if (!res.ok) return;
+        const data = await res.json();
+        // Expecting data.users: array of user objects with latitude, longitude, name/ticket_id
+        const markers = (data.users || [])
+          .filter(u => u.gps_enabled)
+          .map(u => ({ lat: u.latitude, lng: u.longitude, label: u.name || u.ticket_id }));
+        setMapMarkers(markers);
+      } catch {
+        // fallback: keep previous markers
+      }
+    }
+    fetchGpsMarkers();
+    const interval = setInterval(fetchGpsMarkers, 10000); // refresh every 10s
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div style={gradientBg}>
-      <div style={glassCardStyle}>
-        {/* Stats Bar */}
-        <div style={statBarStyle}>
-          <div>
-            <div style={{ fontSize: 13, opacity: 0.7 }}>USERS CHECKED IN</div>
-            <div style={neonText}>{activeUsers}</div>
+    <div className="min-h-screen min-w-full bg-gradient-to-br from-[#0f2027] to-[#2c5364] flex">
+      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} />
+      <div className={`flex flex-col flex-1 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+        <TopNav title="Admin Dashboard" />
+        <main className="pt-20 px-8 pb-8 flex flex-col gap-8">
+          <DashboardLayout
+            stats={stats}
+            activities={activities}
+            mapChildren={<LiveMap markers={mapMarkers} />}
+          />
+          {/* Stepper remains below dashboard for registration flow */}
+          <div className="max-w-md mx-auto w-full mt-8">
+            {step === 1 && (
+              <form onSubmit={handleTicketContinue} className="flex flex-col gap-4 bg-[#182a4d] rounded-2xl p-8 shadow-lg">
+                <div className="font-semibold text-lg mb-2 text-[#e2e8f0]">Enter Ticket ID</div>
+                <input
+                  className="w-full px-4 py-3 rounded-lg bg-[#23395d] text-[#e2e8f0] text-base mb-2 outline-none border border-[#23395d]"
+                  type="text"
+                  placeholder="DX-XXXXXX"
+                  value={ticketId}
+                  onChange={(e) => setTicketId(e.target.value)}
+                  required
+                />
+                {error && <div className="text-[#ff4d6d] bg-[#ff4d6d14] rounded-lg px-3 py-2 text-center mb-2">{error}</div>}
+                <button type="submit" className="bg-gradient-to-r from-[#00d4ff] to-[#2563eb] text-white rounded-lg px-6 py-3 font-bold shadow-md hover:from-[#009ec3] transition-colors" disabled={loading || !ticketId}>
+                  {loading ? "..." : "Continue"}
+                </button>
+              </form>
+            )}
+            {step === 2 && (
+              <form onSubmit={handleRegister} className="flex flex-col gap-4 bg-[#182a4d] rounded-2xl p-8 shadow-lg">
+                <div className="font-semibold text-lg mb-2 text-[#e2e8f0]">Enter Details</div>
+                <input
+                  className="w-full px-4 py-3 rounded-lg bg-[#23395d] text-[#e2e8f0] text-base mb-2 outline-none border border-[#23395d]"
+                  type="text"
+                  placeholder="Full Name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+                <input
+                  className="w-full px-4 py-3 rounded-lg bg-[#23395d] text-[#e2e8f0] text-base mb-2 outline-none border border-[#23395d]"
+                  type="tel"
+                  placeholder="Phone Number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+                {error && <div className="text-[#ff4d6d] bg-[#ff4d6d14] rounded-lg px-3 py-2 text-center mb-2">{error}</div>}
+                {success && <div className="text-[#00ffb3] bg-[#00ffb314] rounded-lg px-3 py-2 text-center mb-2">{success}</div>}
+                <button type="submit" className="bg-gradient-to-r from-[#00d4ff] to-[#2563eb] text-white rounded-lg px-6 py-3 font-bold shadow-md hover:from-[#009ec3] transition-colors" disabled={loading || !name || !phone}>
+                  {loading ? "Registering..." : "Register & Enable GPS"}
+                </button>
+              </form>
+            )}
+            {step === 3 && (
+              <div className="flex flex-col gap-4 bg-[#182a4d] rounded-2xl p-8 shadow-lg text-center">
+                <div className="font-semibold text-xl mb-2 text-[#00ffb3]">✔ Registration Complete</div>
+                <div className="text-base mb-1 text-[#e2e8f0]">Ticket ID:</div>
+                <div className="text-lg font-bold tracking-wide text-[#00d4ff]">{registeredTicket}</div>
+                <button className="bg-gradient-to-r from-[#00d4ff] to-[#2563eb] text-white rounded-lg px-6 py-3 font-bold shadow-md hover:from-[#009ec3] transition-colors" onClick={handleLogout} disabled={loading}>
+                  {loading ? "Logging out..." : "Logout"}
+                </button>
+              </div>
+            )}
           </div>
-          <div>
-            <div style={{ fontSize: 13, opacity: 0.7 }}>GPS ACTIVE</div>
-            <div style={neonText}>{gpsActive}</div>
-          </div>
-        </div>
-
-        {/* Stepper */}
-        {step === 1 && (
-          <form onSubmit={handleTicketContinue} style={{ marginTop: 24 }}>
-            <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 18 }}>Enter Ticket ID</div>
-            <input
-              style={inputStyle}
-              type="text"
-              placeholder="DX-XXXXXX"
-              value={ticketId}
-              onChange={(e) => setTicketId(e.target.value)}
-              required
-            />
-            {error && <div style={errorStyle}>{error}</div>}
-            <button type="submit" style={buttonStyle} disabled={loading || !ticketId}>
-              {loading ? "..." : "Continue"}
-            </button>
-          </form>
-        )}
-
-        {step === 2 && (
-          <form onSubmit={handleRegister} style={{ marginTop: 24 }}>
-            <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 18 }}>Enter Details</div>
-            <input
-              style={inputStyle}
-              type="text"
-              placeholder="Full Name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <input
-              style={inputStyle}
-              type="tel"
-              placeholder="Phone Number"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-            {error && <div style={errorStyle}>{error}</div>}
-            {success && <div style={successStyle}>{success}</div>}
-            <button type="submit" style={buttonStyle} disabled={loading || !name || !phone}>
-              {loading ? "Registering..." : "Register & Enable GPS"}
-            </button>
-          </form>
-        )}
-
-        {step === 3 && (
-          <div style={{ marginTop: 24, textAlign: "center" }}>
-            <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 18, color: "#00ffb3" }}>
-              ✔ Registration Complete
-            </div>
-            <div style={{ fontSize: 16, marginBottom: 8 }}>Ticket ID:</div>
-            <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: 1, color: "#00d4ff" }}>{registeredTicket}</div>
-            <button style={buttonStyle} onClick={handleLogout} disabled={loading}>
-              {loading ? "Logging out..." : "Logout"}
-            </button>
-          </div>
-        )}
+        </main>
       </div>
     </div>
   );
