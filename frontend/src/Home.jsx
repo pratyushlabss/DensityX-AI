@@ -7,16 +7,6 @@ const REFRESH_MS = 5000;
 const API_BASE = "https://densityx-ai.onrender.com";
 
 const clusterName = (id) => `Cluster ${String.fromCharCode(65 + (id % 26))}`;
-const trendColor = (trend) =>
-  trend === "up" ? "#ff6b6b" : trend === "down" ? "#22c55e" : "#94a3b8";
-
-const toRiskProbability = (clusters) => {
-  if (!clusters.length) return 0;
-  const avgRisk =
-    clusters.reduce((sum, c) => sum + (c.risk_score || 0), 0) /
-    clusters.length;
-  return Number(avgRisk.toFixed(1));
-};
 
 export default function Home() {
   const [crowd, setCrowd] = useState({ points: [], clusters: [] });
@@ -25,7 +15,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [history, setHistory] = useState([]);
 
   const previousClustersRef = useRef([]);
 
@@ -34,46 +23,27 @@ export default function Home() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [crowdRes, densityRes] = await Promise.all([
-        fetch(`${API_BASE}/crowd/locations`),
-        fetch(`${API_BASE}/density`),
-      ]);
-
-      if (!crowdRes.ok || !densityRes.ok) throw new Error("API fetch failed");
-
+      console.log("Fetching crowd data from:", `${API_BASE}/crowd/locations`);
+      const crowdRes = await fetch(`${API_BASE}/crowd/locations`);
+      if (!crowdRes.ok) throw new Error(`Crowd API: ${crowdRes.status}`);
       const crowdData = await crowdRes.json();
+
+      console.log("Fetching density data from:", `${API_BASE}/density`);
+      const densityRes = await fetch(`${API_BASE}/density`);
+      if (!densityRes.ok) throw new Error(`Density API: ${densityRes.status}`);
       const densityData = await densityRes.json();
 
-      const previousClusters = previousClustersRef.current;
+      console.log("Crowd data:", crowdData);
+      console.log("Density data:", densityData);
 
-      const enrichedClusters = (densityData.clusters || []).map((cluster) => {
-        const prevMatch = previousClusters.find((c) => c.id === cluster.id);
-        const trend = !prevMatch
-          ? "stable"
-          : cluster.size > prevMatch.size
-          ? "up"
-          : cluster.size < prevMatch.size
-          ? "down"
-          : "stable";
-        return { ...cluster, trend };
-      });
-
-      previousClustersRef.current = enrichedClusters;
+      previousClustersRef.current = densityData.clusters || [];
 
       setCrowd(crowdData);
-      setDensity({ ...densityData, clusters: enrichedClusters });
-
-      setHistory((prev) => [
-        ...prev.slice(-19),
-        {
-          timestamp: Date.now(),
-          pointCount: crowdData.points?.length || 0,
-        },
-      ]);
-
+      setDensity(densityData);
       setError("");
-    } catch {
-      setError("Backend connection issue. Retrying...");
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(`Connection error: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -89,98 +59,125 @@ export default function Home() {
     return () => clearInterval(id);
   }, [autoRefresh, fetchData]);
 
-  const movingAveragePrediction = useMemo(() => {
-    if (history.length < 3) return 0;
-    const last3 = history.slice(-3).map((item) => item.pointCount);
-    return Math.round(last3.reduce((a, b) => a + b, 0) / last3.length);
-  }, [history]);
-
-  const exportReport = () => {
-    const payload = {
-      generatedAt: new Date().toISOString(),
-      metrics: {
-        totalPoints: crowd.points?.length || 0,
-        activeClusters: clusters.length,
-        highRiskClusters: highRiskClusters.length,
-        riskProbability: toRiskProbability(clusters),
-      },
-      clusters,
-      history,
-    };
-
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json",
-    });
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `densityx-cluster-report-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
-    <div>
-      <h1>Main Dashboard</h1>
-
-      {highRiskClusters.length > 0 && (
-        <div style={{ background: "#ffdddd", padding: 10 }}>
-          ⚠ High Density Alert:{" "}
-          {clusterName(highRiskClusters[0].id)} (
-          {highRiskClusters[0].size} people)
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "#f5f5f5" }}>
+      {/* Header */}
+      <div style={{ padding: "1rem", background: "#333", color: "#fff" }}>
+        <h1 style={{ margin: "0.5rem 0" }}>🗺️ Crowd Density Monitor</h1>
+        <div style={{ fontSize: "0.9rem", color: "#aaa" }}>
+          {error ? `⚠️ ${error}` : "🟢 Connected to API"}
         </div>
-      )}
-
-      <MapContainer
-        center={VENUE_CENTER}
-        zoom={14}
-        style={{ height: "400px", width: "100%" }}
-      >
-        <TileLayer
-          attribution="&copy; OpenStreetMap contributors"
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-
-        {(crowd.points || []).map((point, idx) => (
-          <Circle
-            key={`${point.lat}-${point.lon}-${idx}`}
-            center={[point.lat, point.lon]}
-            radius={20}
-          />
-        ))}
-
-        {clusters.map((cluster) => (
-          <CircleMarker
-            key={cluster.id}
-            center={[cluster.centroid_lat, cluster.centroid_lon]}
-            radius={cluster.risk_flag ? 14 : 10}
-            eventHandlers={{ click: () => setSelectedCluster(cluster) }}
-          >
-            <Popup>
-              {clusterName(cluster.id)} • {cluster.size} people
-            </Popup>
-          </CircleMarker>
-        ))}
-      </MapContainer>
-
-      <div style={{ marginTop: 20 }}>
-        <p>Total Points: {crowd.points?.length || 0}</p>
-        <p>Active Clusters: {clusters.length}</p>
-        <p>High Risk Clusters: {highRiskClusters.length}</p>
-        <p>Risk Probability: {toRiskProbability(clusters)}%</p>
-        <p>Predicted Next Density: {movingAveragePrediction}</p>
-
-        <button onClick={() => setAutoRefresh((v) => !v)}>
-          {autoRefresh ? "Pause Refresh" : "Resume Refresh"}
-        </button>
-
-        <button onClick={fetchData}>Refresh Now</button>
-        <button onClick={exportReport}>Export JSON</button>
       </div>
 
-      {loading && <p>Loading...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {/* Main Content */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto" }}>
+        {loading ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <p>Loading map and data...</p>
+          </div>
+        ) : (
+          <>
+            {/* Map Container */}
+            <div style={{ flex: 1, minHeight: "300px" }}>
+              <MapContainer
+                center={VENUE_CENTER}
+                zoom={14}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer
+                  attribution="&copy; OpenStreetMap contributors"
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+
+                {/* Crowd Points */}
+                {(crowd.points || []).map((point, idx) => (
+                  <Circle
+                    key={`point-${idx}`}
+                    center={[point.lat, point.lon]}
+                    radius={20}
+                    color="#1e40af"
+                    fillColor="#3b82f6"
+                    fillOpacity={0.5}
+                  />
+                ))}
+
+                {/* Cluster Centroids */}
+                {clusters.map((cluster) => (
+                  <CircleMarker
+                    key={`cluster-${cluster.id}`}
+                    center={[cluster.centroid_lat || cluster.lat, cluster.centroid_lon || cluster.lon]}
+                    radius={cluster.risk_flag ? 14 : 10}
+                    color={cluster.risk_flag ? "#dc2626" : "#16a34a"}
+                    fillColor={cluster.risk_flag ? "#ef4444" : "#22c55e"}
+                    fillOpacity={0.8}
+                    weight={2}
+                  >
+                    <Popup>
+                      <strong>{clusterName(cluster.id)}</strong>
+                      <br />
+                      Size: {cluster.cluster_size || cluster.size} people
+                      <br />
+                      Risk: {cluster.risk_flag ? "HIGH" : "NORMAL"}
+                    </Popup>
+                  </CircleMarker>
+                ))}
+              </MapContainer>
+            </div>
+
+            {/* Stats Panel */}
+            <div style={{ padding: "1rem", background: "#fff", borderTop: "1px solid #ddd" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "1rem" }}>
+                <div style={{ padding: "0.5rem", background: "#f0f9ff", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#666" }}>Total Points</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{crowd.points?.length || 0}</div>
+                </div>
+                <div style={{ padding: "0.5rem", background: "#f0fdf4", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#666" }}>Active Clusters</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{clusters.length}</div>
+                </div>
+                <div style={{ padding: "0.5rem", background: "#fef2f2", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#666" }}>High Risk</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#dc2626" }}>{highRiskClusters.length}</div>
+                </div>
+                <div style={{ padding: "0.5rem", background: "#fef3c7", borderRadius: "4px" }}>
+                  <div style={{ fontSize: "0.8rem", color: "#666" }}>Density</div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}>{Math.round(((crowd.points?.length || 0) / 200) * 100)}%</div>
+                </div>
+              </div>
+
+              {/* Controls */}
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button
+                  onClick={() => setAutoRefresh((v) => !v)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    background: autoRefresh ? "#3b82f6" : "#9ca3af",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {autoRefresh ? "⏸ Pause" : "▶ Resume"}
+                </button>
+                <button
+                  onClick={fetchData}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    background: "#10b981",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  🔄 Refresh Now
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
