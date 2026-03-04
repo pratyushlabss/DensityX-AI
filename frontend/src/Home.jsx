@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 
 const VENUE_CENTER = [13.085, 80.2101];
 const REFRESH_MS = 5000;
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://densityx-ai.onrender.com";
+const API_BASE = "https://densityx-ai.onrender.com";
 
 const clusterName = (id) => `Cluster ${String.fromCharCode(65 + (id % 26))}`;
 const trendColor = (trend) =>

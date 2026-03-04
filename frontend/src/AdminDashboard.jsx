@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://densityx-ai.onrender.com";
+const API_BASE = "https://densityx-ai.onrender.com";
 
 function AdminDashboard() {
   const [clusters, setClusters] = useState([]);
