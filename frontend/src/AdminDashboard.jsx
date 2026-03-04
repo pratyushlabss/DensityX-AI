@@ -1,301 +1,371 @@
 import React, { useState, useEffect } from "react";
-import Sidebar from "./components/Sidebar";
-import TopNav from "./components/TopNav";
-import DashboardLayout from "./components/dashboard/DashboardLayout";
-import StatCard from "./components/dashboard/StatCard";
-import MapContainer from "./components/dashboard/MapContainer";
-import ActivityFeed from "./components/dashboard/ActivityFeed";
-import LiveMap from "./components/dashboard/LiveMap";
 
-const API_BASE = "https://densityx-ai.onrender.com";
-
-const glassCardStyle = {
-  background: "rgba(20, 30, 60, 0.85)",
-  boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.37)",
-  backdropFilter: "blur(8px)",
-  WebkitBackdropFilter: "blur(8px)",
-  borderRadius: "24px",
-  border: "1px solid rgba(255,255,255,0.18)",
-  padding: "2.5rem 2rem 2rem 2rem",
-  minWidth: 340,
-  maxWidth: 400,
-  margin: "auto",
-  color: "#fff",
-  position: "relative",
-};
-
-// Remove gradientBg, use Tailwind classes for layout
-
-const neonText = {
-  color: "#00d4ff",
-  textShadow: "0 0 8px #00d4ff, 0 0 16px #00d4ff80",
-  fontWeight: 700,
-};
-
-const statBarStyle = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 32,
-  padding: "0 0 12px 0",
-  borderBottom: "1px solid #23395d",
-  gap: 16,
-};
-
-const buttonStyle = {
-  background: "linear-gradient(90deg, #00d4ff 0%, #2563eb 100%)",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  padding: "12px 24px",
-  fontWeight: 600,
-  fontSize: 16,
-  marginTop: 16,
-  boxShadow: "0 2px 12px #00d4ff40",
-  cursor: "pointer",
-  transition: "background 0.2s, box-shadow 0.2s",
-};
-
-const inputStyle = {
-  width: "100%",
-  padding: "12px",
-  borderRadius: 8,
-  border: "1px solid #23395d",
-  background: "rgba(255,255,255,0.08)",
-  color: "#fff",
-  fontSize: 16,
-  marginBottom: 18,
-  outline: "none",
-};
-
-const errorStyle = {
-  color: "#ff4d6d",
-  background: "rgba(255,77,109,0.08)",
-  borderRadius: 8,
-  padding: "8px 12px",
-  marginBottom: 12,
-  textAlign: "center",
-};
-
-const successStyle = {
-  color: "#00ffb3",
-  background: "rgba(0,255,179,0.08)",
-  borderRadius: 8,
-  padding: "8px 12px",
-  marginBottom: 12,
-  textAlign: "center",
-};
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://densityx-ai.onrender.com";
 
 function AdminDashboard() {
-  const [step, setStep] = useState(1);
-  const [ticketId, setTicketId] = useState("");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [activeUsers, setActiveUsers] = useState(0);
-  const [gpsActive, setGpsActive] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [clusters, setClusters] = useState([]);
+  const [points, setPoints] = useState([]);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    activeClusters: 0,
+    highRiskClusters: 0,
+    density: 0,
+  });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [registeredTicket, setRegisteredTicket] = useState("");
+  const [refreshInterval, setRefreshInterval] = useState(5);
 
-  useEffect(() => {
-    fetch(`${API_BASE}/user/active-count`)
-      .then((res) => res.json())
-      .then((data) => {
-        setActiveUsers(data.active_users || 0);
-      })
-      .catch(() => setActiveUsers(0));
-  }, [step]);
-
-  // --- Step Handlers ---
-  const handleTicketContinue = (e) => {
-    e.preventDefault();
-    setError("");
-    setStep(2);
-  };
-
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    setSuccess("");
+  const fetchDashboardData = async () => {
     try {
-      const res = await fetch(`${API_BASE}/user/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, ticket_id: ticketId }),
+      setError("");
+      const [crowdRes, densityRes] = await Promise.all([
+        fetch(`${API_BASE}/crowd/locations`),
+        fetch(`${API_BASE}/density`),
+      ]);
+
+      if (!crowdRes.ok || !densityRes.ok) {
+        throw new Error(`API Error: ${crowdRes.status} / ${densityRes.status}`);
+      }
+
+      const crowdData = await crowdRes.json();
+      const densityData = await densityRes.json();
+
+      setPoints(crowdData.points || []);
+      setClusters(densityData.clusters || []);
+
+      const highRiskCount = (densityData.clusters || []).filter((c) => c.risk_flag).length;
+      const totalDensity = Math.round(
+        ((crowdData.count || 0) / 200) * 100
+      );
+
+      setStats({
+        totalUsers: crowdData.count || 0,
+        activeClusters: densityData.clusters?.length || 0,
+        highRiskClusters: highRiskCount,
+        density: totalDensity,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.message || "Registration failed");
-        setLoading(false);
-        return;
-      }
-      setSuccess("✔ Registered successfully!");
-      setRegisteredTicket(data.ticket_id);
-      setGpsActive((prev) => prev + 1);
-      setStep(3);
+
       setLoading(false);
-      // Refresh active users
-      fetch(`${API_BASE}/user/active-count`)
-        .then((res) => res.json())
-        .then((data) => setActiveUsers(data.active_users || 0));
     } catch (err) {
-      setError("Network error. Please try again.");
+      console.error("Dashboard fetch error:", err);
+      setError(`Failed to fetch data: ${err.message}`);
       setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      await fetch(`${API_BASE}/user/logout`, { method: "POST" });
-      setStep(1);
-      setName("");
-      setPhone("");
-      setTicketId("");
-      setGpsActive((prev) => (prev > 0 ? prev - 1 : 0));
-      setRegisteredTicket("");
-      setSuccess("");
-      setLoading(false);
-      // Refresh active users
-      fetch(`${API_BASE}/user/active-count`)
-        .then((res) => res.json())
-        .then((data) => setActiveUsers(data.active_users || 0));
-    } catch {
-      setError("Logout failed. Try again.");
-      setLoading(false);
-frontend/src/App.css
-    }
-  };
-
-  // Layout: Sidebar, TopNav, main dashboard content, map section placeholder
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // Prepare stats and activities for DashboardLayout
-  const stats = [
-    {
-      title: "Total Users Checked In",
-      value: activeUsers,
-      // icon: Users, // Uncomment and import Lucide icons if needed
-    },
-    {
-      title: "Active GPS Nodes",
-      value: gpsActive,
-      // icon: MapPin,
-    },
-    {
-      title: "Crowd Density Index",
-      value: "High", // Replace with real value if available
-      color: "text-yellow-400",
-      // icon: Activity,
-    },
-    {
-      title: "Risk Clusters",
-      value: 3, // Replace with real value if available
-      color: "text-density-red",
-      // icon: ShieldAlert,
-    },
-  ];
-
-  const activities = [
-    { title: "User DX-9321 Checked In", time: "2 minutes ago • Cluster A" },
-    { title: "User DX-9322 Checked In", time: "5 minutes ago • Cluster B" },
-    { title: "User DX-9323 Checked In", time: "10 minutes ago • Cluster C" },
-    // TODO: Replace with real activity data from API
-  ];
-
-  // Fetch real-time GPS-enabled user locations for map
-  const [mapMarkers, setMapMarkers] = useState([]);
   useEffect(() => {
-    async function fetchGpsMarkers() {
-      try {
-        const res = await fetch(`${API_BASE}/user/active-users`);
-        if (!res.ok) return;
-        const data = await res.json();
-        // Expecting data.users: array of user objects with latitude, longitude, name/ticket_id
-        const markers = (data.users || [])
-          .filter(u => u.gps_enabled)
-          .map(u => ({ lat: u.latitude, lng: u.longitude, label: u.name || u.ticket_id }));
-        setMapMarkers(markers);
-      } catch {
-        // fallback: keep previous markers
-      }
-    }
-    fetchGpsMarkers();
-    const interval = setInterval(fetchGpsMarkers, 10000); // refresh every 10s
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, refreshInterval * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshInterval]);
 
   return (
-    <div className="min-h-screen min-w-full bg-gradient-to-br from-[#0f2027] to-[#2c5364] flex">
-      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)} />
-      <div className={`flex flex-col flex-1 transition-all duration-300 ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
-        <TopNav title="Admin Dashboard" />
-        <main className="pt-20 px-8 pb-8 flex flex-col gap-8">
-          <DashboardLayout
-            stats={stats}
-            activities={activities}
-            mapChildren={<LiveMap markers={mapMarkers} />}
-          />
-          {/* Stepper remains below dashboard for registration flow */}
-          <div className="max-w-md mx-auto w-full mt-8">
-            {step === 1 && (
-              <form onSubmit={handleTicketContinue} className="flex flex-col gap-4 bg-[#182a4d] rounded-2xl p-8 shadow-lg">
-                <div className="font-semibold text-lg mb-2 text-[#e2e8f0]">Enter Ticket ID</div>
-                <input
-                  className="w-full px-4 py-3 rounded-lg bg-[#23395d] text-[#e2e8f0] text-base mb-2 outline-none border border-[#23395d]"
-                  type="text"
-                  placeholder="DX-XXXXXX"
-                  value={ticketId}
-                  onChange={(e) => setTicketId(e.target.value)}
-                  required
-                />
-                {error && <div className="text-[#ff4d6d] bg-[#ff4d6d14] rounded-lg px-3 py-2 text-center mb-2">{error}</div>}
-                <button type="submit" className="bg-gradient-to-r from-[#00d4ff] to-[#2563eb] text-white rounded-lg px-6 py-3 font-bold shadow-md hover:from-[#009ec3] transition-colors" disabled={loading || !ticketId}>
-                  {loading ? "..." : "Continue"}
-                </button>
-              </form>
-            )}
-            {step === 2 && (
-              <form onSubmit={handleRegister} className="flex flex-col gap-4 bg-[#182a4d] rounded-2xl p-8 shadow-lg">
-                <div className="font-semibold text-lg mb-2 text-[#e2e8f0]">Enter Details</div>
-                <input
-                  className="w-full px-4 py-3 rounded-lg bg-[#23395d] text-[#e2e8f0] text-base mb-2 outline-none border border-[#23395d]"
-                  type="text"
-                  placeholder="Full Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-                <input
-                  className="w-full px-4 py-3 rounded-lg bg-[#23395d] text-[#e2e8f0] text-base mb-2 outline-none border border-[#23395d]"
-                  type="tel"
-                  placeholder="Phone Number"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  required
-                />
-                {error && <div className="text-[#ff4d6d] bg-[#ff4d6d14] rounded-lg px-3 py-2 text-center mb-2">{error}</div>}
-                {success && <div className="text-[#00ffb3] bg-[#00ffb314] rounded-lg px-3 py-2 text-center mb-2">{success}</div>}
-                <button type="submit" className="bg-gradient-to-r from-[#00d4ff] to-[#2563eb] text-white rounded-lg px-6 py-3 font-bold shadow-md hover:from-[#009ec3] transition-colors" disabled={loading || !name || !phone}>
-                  {loading ? "Registering..." : "Register & Enable GPS"}
-                </button>
-              </form>
-            )}
-            {step === 3 && (
-              <div className="flex flex-col gap-4 bg-[#182a4d] rounded-2xl p-8 shadow-lg text-center">
-                <div className="font-semibold text-xl mb-2 text-[#00ffb3]">✔ Registration Complete</div>
-                <div className="text-base mb-1 text-[#e2e8f0]">Ticket ID:</div>
-                <div className="text-lg font-bold tracking-wide text-[#00d4ff]">{registeredTicket}</div>
-                <button className="bg-gradient-to-r from-[#00d4ff] to-[#2563eb] text-white rounded-lg px-6 py-3 font-bold shadow-md hover:from-[#009ec3] transition-colors" onClick={handleLogout} disabled={loading}>
-                  {loading ? "Logging out..." : "Logout"}
-                </button>
-              </div>
-            )}
-          </div>
-        </main>
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
+      padding: "2rem",
+      color: "#fff",
+    }}>
+      {/* Header */}
+      <div style={{ marginBottom: "3rem", textAlign: "center" }}>
+        <div style={{
+          fontSize: "2.5rem",
+          fontWeight: "bold",
+          color: "#00d4ff",
+          textShadow: "0 0 20px rgba(0, 212, 255, 0.5)",
+          marginBottom: "0.5rem",
+        }}>
+          📊 Admin Dashboard
+        </div>
+        <div style={{ fontSize: "1rem", color: "#a0aec0" }}>
+          Real-time Crowd Density Monitoring
+        </div>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div style={{
+          background: "rgba(255, 77, 109, 0.2)",
+          border: "1px solid rgba(255, 77, 109, 0.5)",
+          color: "#ff4d6d",
+          padding: "1rem",
+          borderRadius: "8px",
+          marginBottom: "2rem",
+        }}>
+          <strong>⚠️ Error:</strong> {error}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div style={{
+        display: "flex",
+        gap: "1rem",
+        marginBottom: "2rem",
+        alignItems: "center",
+      }}>
+        <button
+          style={{
+            background: "linear-gradient(90deg, #00d4ff 0%, #2563eb 100%)",
+            color: "#fff",
+            border: "none",
+            padding: "0.75rem 1.5rem",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "600",
+            transition: "all 0.3s ease",
+          }}
+          onClick={fetchDashboardData}
+          disabled={loading}
+        >
+          {loading ? "Loading..." : "🔄 Refresh Now"}
+        </button>
+        <label style={{ fontSize: "0.9rem", color: "#a0aec0" }}>
+          Refresh interval:
+          <select
+            style={{
+              background: "rgba(30, 58, 138, 0.8)",
+              color: "#fff",
+              border: "1px solid rgba(0, 212, 255, 0.3)",
+              padding: "0.5rem 1rem",
+              borderRadius: "8px",
+              fontSize: "0.9rem",
+              marginLeft: "0.5rem",
+            }}
+            value={refreshInterval}
+            onChange={(e) => setRefreshInterval(Number(e.target.value))}
+          >
+            <option value={3}>3 seconds</option>
+            <option value={5}>5 seconds</option>
+            <option value={10}>10 seconds</option>
+            <option value={30}>30 seconds</option>
+          </select>
+        </label>
+      </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div style={{
+          textAlign: "center",
+          padding: "3rem",
+          fontSize: "1.25rem",
+          color: "#00d4ff",
+        }}>
+          Loading dashboard data...
+        </div>
+      )}
+
+      {/* Stats Grid */}
+      {!loading && (
+        <>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: "1.5rem",
+            marginBottom: "3rem",
+          }}>
+            <div style={{
+              background: "rgba(30, 58, 138, 0.6)",
+              border: "1px solid rgba(0, 212, 255, 0.2)",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              backdropFilter: "blur(10px)",
+            }}>
+              <div style={{
+                color: "#a0aec0",
+                fontSize: "0.875rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                marginBottom: "0.5rem",
+              }}>Total Users Registered</div>
+              <div style={{
+                fontSize: "2.5rem",
+                fontWeight: "bold",
+                color: "#00ffb3",
+                textShadow: "0 0 10px rgba(0, 255, 179, 0.5)",
+              }}>{stats.totalUsers}</div>
+            </div>
+            <div style={{
+              background: "rgba(30, 58, 138, 0.6)",
+              border: "1px solid rgba(0, 212, 255, 0.2)",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              backdropFilter: "blur(10px)",
+            }}>
+              <div style={{
+                color: "#a0aec0",
+                fontSize: "0.875rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                marginBottom: "0.5rem",
+              }}>Active Clusters</div>
+              <div style={{
+                fontSize: "2.5rem",
+                fontWeight: "bold",
+                color: "#00ffb3",
+                textShadow: "0 0 10px rgba(0, 255, 179, 0.5)",
+              }}>{stats.activeClusters}</div>
+            </div>
+            <div style={{
+              background: "rgba(30, 58, 138, 0.6)",
+              border: "1px solid rgba(0, 212, 255, 0.2)",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              backdropFilter: "blur(10px)",
+            }}>
+              <div style={{
+                color: "#a0aec0",
+                fontSize: "0.875rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                marginBottom: "0.5rem",
+              }}>High Risk Clusters</div>
+              <div style={{
+                fontSize: "2.5rem",
+                fontWeight: "bold",
+                color: stats.highRiskClusters > 0 ? "#ff4d6d" : "#00ffb3",
+              }}>{stats.highRiskClusters}</div>
+            </div>
+            <div style={{
+              background: "rgba(30, 58, 138, 0.6)",
+              border: "1px solid rgba(0, 212, 255, 0.2)",
+              borderRadius: "12px",
+              padding: "1.5rem",
+              backdropFilter: "blur(10px)",
+            }}>
+              <div style={{
+                color: "#a0aec0",
+                fontSize: "0.875rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                marginBottom: "0.5rem",
+              }}>Crowd Density</div>
+              <div style={{
+                fontSize: "2.5rem",
+                fontWeight: "bold",
+                color: "#00ffb3",
+                textShadow: "0 0 10px rgba(0, 255, 179, 0.5)",
+              }}>{stats.density}%</div>
+            </div>
+          </div>
+
+          {/* Clusters Section */}
+          <h2 style={{ fontSize: "1.5rem", marginBottom: "1.5rem", color: "#00d4ff" }}>
+            🎯 Cluster Details
+          </h2>
+
+          {clusters.length === 0 ? (
+            <div style={{
+              background: "rgba(30, 58, 138, 0.6)",
+              border: "1px solid rgba(0, 212, 255, 0.2)",
+              borderRadius: "12px",
+              padding: "2rem",
+              backdropFilter: "blur(10px)",
+              textAlign: "center",
+            }}>
+              No clusters detected. Waiting for crowd data...
+            </div>
+          ) : (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: "1.5rem",
+              marginBottom: "3rem",
+            }}>
+              {clusters.map((cluster, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: cluster.risk_flag ? "rgba(255, 77, 109, 0.1)" : "rgba(30, 58, 138, 0.7)",
+                    border: cluster.risk_flag ? "1px solid rgba(255, 77, 109, 0.5)" : "1px solid rgba(0, 212, 255, 0.3)",
+                    borderRadius: "12px",
+                    padding: "1.5rem",
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  <div style={{
+                    fontSize: "1.25rem",
+                    fontWeight: "bold",
+                    color: "#00d4ff",
+                    marginBottom: "0.75rem",
+                  }}>Cluster {idx + 1}</div>
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.9rem",
+                  }}>
+                    <span>Cluster ID:</span>
+                    <strong>{cluster.cluster_id}</strong>
+                  </div>
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.9rem",
+                  }}>
+                    <span>Size:</span>
+                    <strong>{cluster.cluster_size} people</strong>
+                  </div>
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "0.5rem",
+                    fontSize: "0.9rem",
+                  }}>
+                    <span>Center:</span>
+                    <strong>
+                      {cluster.centroid?.lat?.toFixed(4) || "N/A"},{" "}
+                      {cluster.centroid?.lon?.toFixed(4) || "N/A"}
+                    </strong>
+                  </div>
+                  <div style={{
+                    display: "inline-block",
+                    padding: "0.25rem 0.75rem",
+                    borderRadius: "20px",
+                    fontSize: "0.75rem",
+                    fontWeight: "bold",
+                    background: cluster.risk_flag ? "rgba(255, 77, 109, 0.2)" : "rgba(0, 255, 179, 0.2)",
+                    color: cluster.risk_flag ? "#ff4d6d" : "#00ffb3",
+                    marginTop: "0.5rem",
+                  }}>
+                    {cluster.risk_flag ? "🔴 HIGH RISK" : "🟢 NORMAL"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Points Summary */}
+          <h2 style={{ fontSize: "1.5rem", marginBottom: "1.5rem", color: "#00d4ff" }}>
+            📍 Points Data
+          </h2>
+          <div style={{
+            background: "rgba(30, 58, 138, 0.6)",
+            border: "1px solid rgba(0, 212, 255, 0.2)",
+            borderRadius: "12px",
+            padding: "1.5rem",
+            backdropFilter: "blur(10px)",
+          }}>
+            <div style={{ marginBottom: "1rem" }}>
+              <strong>Total Points:</strong> {points.length}
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "#a0aec0" }}>
+              {points.length > 0 ? (
+                <>
+                  <p>Sample points (first 5):</p>
+                  {points.slice(0, 5).map((p, idx) => (
+                    <div key={idx}>
+                      • Point {idx + 1}: ({p.lat?.toFixed(4)}, {p.lon?.toFixed(4)})
+                    </div>
+                  ))}
+                </>
+              ) : (
+                "No points available"
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
