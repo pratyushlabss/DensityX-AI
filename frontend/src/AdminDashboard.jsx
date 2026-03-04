@@ -199,9 +199,9 @@ frontend/src/App.css
   ];
 
   const activities = [
-    { title: "User DX-9321 Checked In", time: "2 minutes ago • Zone 1" },
-    { title: "User DX-9322 Checked In", time: "5 minutes ago • Zone 2" },
-    { title: "User DX-9323 Checked In", time: "10 minutes ago • Zone 3" },
+    { title: "User DX-9321 Checked In", time: "2 minutes ago • Cluster A" },
+    { title: "User DX-9322 Checked In", time: "5 minutes ago • Cluster B" },
+    { title: "User DX-9323 Checked In", time: "10 minutes ago • Cluster C" },
     // TODO: Replace with real activity data from API
   ];
 

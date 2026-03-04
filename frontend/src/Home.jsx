@@ -6,7 +6,7 @@ const VENUE_CENTER = [13.085, 80.2101];
 const REFRESH_MS = 5000;
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://densityx-ai.onrender.com";
 
-const zoneName = (id) => `Zone ${String.fromCharCode(65 + (id % 26))}`;
+const clusterName = (id) => `Cluster ${String.fromCharCode(65 + (id % 26))}`;
 const trendColor = (trend) =>
   trend === "up" ? "#ff6b6b" : trend === "down" ? "#22c55e" : "#94a3b8";
 
@@ -127,7 +127,7 @@ export default function Home() {
       {highRiskClusters.length > 0 && (
         <div style={{ background: "#ffdddd", padding: 10 }}>
           ⚠ High Density Alert:{" "}
-          {zoneName(highRiskClusters[0].id)} (
+          {clusterName(highRiskClusters[0].id)} (
           {highRiskClusters[0].size} people)
         </div>
       )}
@@ -158,7 +158,7 @@ export default function Home() {
             eventHandlers={{ click: () => setSelectedCluster(cluster) }}
           >
             <Popup>
-              {zoneName(cluster.id)} • {cluster.size} people
+              {clusterName(cluster.id)} • {cluster.size} people
             </Popup>
           </CircleMarker>
         ))}

@@ -10,8 +10,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin" element={<Home />} />
-        <Route path="/onboarding" element={<AdminDashboard />} />
+        <Route path="/onboarding" element={<Home />} />
+        <Route path="*" element={<Home />} />
       </Routes>
     </BrowserRouter>
   );
