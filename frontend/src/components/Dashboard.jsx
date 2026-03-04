@@ -2,14 +2,24 @@ import React, { useState, useEffect, useCallback } from "react";
 import { MapView } from "./MapView";
 import { StatsPanel } from "./StatsPanel";
 import { AlertPanel } from "./AlertPanel";
+import { LoginRegister } from "./LoginRegister";
 import { apiClient } from "../services/apiClient";
 
 export function Dashboard() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [data, setData] = useState({ points: [], clusters: [] });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(5);
   const [selectedCluster, setSelectedCluster] = useState(null);
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const userTicketId = localStorage.getItem('userTicketId');
+    if (userTicketId) {
+      setIsLoggedIn(true);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -35,6 +45,24 @@ export function Dashboard() {
   const handleClusterClick = (cluster) => {
     setSelectedCluster(cluster);
   };
+
+  const handleLoginSuccess = (ticketId) => {
+    setIsLoggedIn(true);
+    setLoading(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('userTicketId');
+    localStorage.removeItem('userName');
+    setIsLoggedIn(false);
+    setData({ points: [], clusters: [] });
+    setError(null);
+  };
+
+  // Show login form if not logged in
+  if (!isLoggedIn) {
+    return <LoginRegister onLoginSuccess={handleLoginSuccess} />;
+  }
 
   if (error && loading) {
     return (
@@ -99,8 +127,26 @@ export function Dashboard() {
           <h1 style={{ margin: 0, fontSize: "1.3rem", fontWeight: "bold" }}>
             🗺️ DensityX Monitor
           </h1>
-          <div style={{ fontSize: "0.9rem", color: "#a0aec0" }}>
-            {loading ? "Loading..." : "📡 Live"}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div style={{ fontSize: "0.9rem", color: "#a0aec0" }}>
+              {loading ? "Loading..." : "📡 Live"}
+            </div>
+            <button
+              onClick={handleLogout}
+              style={{
+                background: "rgba(239, 68, 68, 0.8)",
+                color: "white",
+                border: "none",
+                padding: "6px 12px",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontWeight: "bold",
+                fontSize: "0.85rem",
+                transition: "opacity 0.3s",
+              }}
+            >
+              🚪 Logout
+            </button>
           </div>
         </div>
 
